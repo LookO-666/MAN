@@ -1,35 +1,115 @@
-# Train CIFAR10 with PyTorch
+# MAN: Closed-Loop LLM-Guided CIFAR-10 Research on PyTorch
 
-I'm playing with [PyTorch](http://pytorch.org/) on the CIFAR10 dataset.
+This repository extends the original CIFAR-10 training codebase with a closed-loop experimentation framework for model improvement research. It adds automated idea generation, experiment execution, result analysis, and iterative refinement across multiple research strategies.
 
-## Prerequisites
-- Python 3.6+
-- PyTorch 1.0+
+## Project Overview
 
-## Training
+The codebase contains two main parts:
+
+- Original PyTorch CIFAR-10 training pipeline based on ResNet and related architectures
+- A `closed_loop/` framework for running iterative AI-guided research experiments
+
+The closed-loop system supports:
+
+- Full closed-loop search with mini-experiment screening and feedback
+- Ablation variants such as `no_memory`, `no_mini_exp`, `no_llm_analysis`, `linear`, and `no_feedback`
+- Baselines such as `random`, `openloop`, and `single_shot` / zero-shot style search
+
+## Repository Structure
+
+```text
+.
+├── main.py                      # Original CIFAR-10 training entry
+├── models/                      # Backbone model definitions
+├── utils.py                     # Training utilities
+├── run_baselines.py             # Baseline experiment runner
+├── results/                     # Baseline and comparison results
+└── closed_loop/
+    ├── loop.py                  # Main closed-loop research driver
+    ├── runner.py                # Experiment execution wrapper
+    ├── llm_client.py            # LLM API interaction
+    ├── prompts.py               # Prompt templates
+    ├── signal_extractor.py      # Early-signal extraction for screening
+    ├── experience_memory.py     # Failure/experience memory
+    ├── config.py                # Global experiment config
+    └── experiments/             # Outputs from iterative experiments
 ```
-# Start training with: 
+
+## Installation
+
+Recommended environment:
+
+- Python 3.8+
+- PyTorch compatible with your CUDA environment
+
+Install dependencies manually if needed:
+
+```bash
+pip install torch torchvision tqdm requests
+```
+
+## Original CIFAR-10 Training
+
+Train the baseline model:
+
+```bash
 python main.py
-
-# You can manually resume the training with: 
-python main.py --resume --lr=0.01
 ```
 
-## Accuracy
-| Model             | Acc.        |
-| ----------------- | ----------- |
-| [VGG16](https://arxiv.org/abs/1409.1556)              | 92.64%      |
-| [ResNet18](https://arxiv.org/abs/1512.03385)          | 93.02%      |
-| [ResNet50](https://arxiv.org/abs/1512.03385)          | 93.62%      |
-| [ResNet101](https://arxiv.org/abs/1512.03385)         | 93.75%      |
-| [RegNetX_200MF](https://arxiv.org/abs/2003.13678)     | 94.24%      |
-| [RegNetY_400MF](https://arxiv.org/abs/2003.13678)     | 94.29%      |
-| [MobileNetV2](https://arxiv.org/abs/1801.04381)       | 94.43%      |
-| [ResNeXt29(32x4d)](https://arxiv.org/abs/1611.05431)  | 94.73%      |
-| [ResNeXt29(2x64d)](https://arxiv.org/abs/1611.05431)  | 94.82%      |
-| [SimpleDLA](https://arxiv.org/abs/1707.064)           | 94.89%      |
-| [DenseNet121](https://arxiv.org/abs/1608.06993)       | 95.04%      |
-| [PreActResNet18](https://arxiv.org/abs/1603.05027)    | 95.11%      |
-| [DPN92](https://arxiv.org/abs/1707.01629)             | 95.16%      |
-| [DLA](https://arxiv.org/pdf/1707.06484.pdf)           | 95.47%      |
+Resume training:
 
+```bash
+python main.py --resume --lr 0.01
+```
+
+## Closed-Loop Research Workflow
+
+Main entry:
+
+```bash
+cd closed_loop
+python loop.py
+```
+
+Run a specific method variant:
+
+```bash
+python loop.py --method full
+python loop.py --method no_memory
+python loop.py --method no_mini_exp
+python loop.py --method linear
+python loop.py --method random
+python loop.py --method single_shot
+```
+
+## Configuration
+
+Core configuration is defined in `closed_loop/config.py`.
+
+Important options include:
+
+- Number of rounds
+- Number of candidates per round
+- Number of survivors
+- Mini/full experiment epochs
+- LLM API endpoint and model name
+- Method variant
+
+## Result Summaries
+
+Current recorded summaries in this repository include:
+
+- `results/zeroshot/summary.json`: best test accuracy `82.66`
+- `results/openloop/summary.json`: best test accuracy `82.85`
+- `results/random/summary.json`: best test accuracy `83.59`
+- `closed_loop/experiments/full/final_summary.json`: baseline `95.51`, best `95.51`, improvement `0.0`
+
+## Notes
+
+- Dataset files, checkpoints, and `.pth` weights are excluded via `.gitignore`
+- Some experiment directories use linked `data` paths
+- The repository currently contains experiment outputs and logs for multiple rounds and ablation settings
+
+## Acknowledgement
+
+This project is built on top of the original [`kuangliu/pytorch-cifar`](https://github.com/kuangliu/pytorch-cifar) repository and extends it with a closed-loop LLM-guided experimentation framework.

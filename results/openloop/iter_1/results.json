@@ -1,0 +1,40 @@
+{
+  "best_test_acc": 82.85,
+  "history": [
+    {
+      "epoch": 0,
+      "train_loss": 1.5975196776182756,
+      "train_acc": 41.278,
+      "test_loss": 1.3321341454982758,
+      "test_acc": 50.89
+    },
+    {
+      "epoch": 1,
+      "train_loss": 1.0787781658379927,
+      "train_acc": 61.186,
+      "test_loss": 0.9869538831710816,
+      "test_acc": 65.04
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.820860325832806,
+      "train_acc": 70.836,
+      "test_loss": 0.813574749827385,
+      "test_acc": 72.49
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.6316104314058942,
+      "train_acc": 77.8,
+      "test_loss": 0.6283134508132935,
+      "test_acc": 78.32
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.4903537459538111,
+      "train_acc": 82.966,
+      "test_loss": 0.5085801637172699,
+      "test_acc": 82.85
+    }
+  ]
+}

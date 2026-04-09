@@ -1,0 +1,4 @@
+{
+  "strategy": "zeroshot",
+  "best_test_acc": 82.66
+}

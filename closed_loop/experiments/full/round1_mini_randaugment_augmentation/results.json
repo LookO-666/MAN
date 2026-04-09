@@ -1,0 +1,26 @@
+{
+  "best_test_acc": 57.67,
+  "history": [
+    {
+      "epoch": 0,
+      "train_loss": 2.2332536460798416,
+      "train_acc": 23.056,
+      "test_loss": 1.8237484061717988,
+      "test_acc": 31.61
+    },
+    {
+      "epoch": 1,
+      "train_loss": 1.6997016756735799,
+      "train_acc": 37.5,
+      "test_loss": 1.3953999781608581,
+      "test_acc": 48.73
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.3864880967932893,
+      "train_acc": 49.83,
+      "test_loss": 1.1718415468931198,
+      "test_acc": 57.67
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import torchvision.transforms as transforms
 
 import os
 import argparse
+import json
 
 from models import *
 from utils import progress_bar
@@ -17,9 +18,14 @@ from utils import progress_bar
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+parser.add_argument('--epoch', default=200, type=int, help='number of epochs to train')
+parser.add_argument('--weight_decay', default=5e-4, type=float, help='weight decay')
+parser.add_argument('--out_dir', default='.', type=str, help='output directory for results')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
 args = parser.parse_args()
+
+os.makedirs(args.out_dir, exist_ok=True)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
@@ -68,7 +74,7 @@ print('==> Building model..')
 # net = ShuffleNetV2(1)
 # net = EfficientNetB0()
 # net = RegNetX_200MF()
-net = SimpleDLA()
+net = ResNet18()
 net = net.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
@@ -85,8 +91,8 @@ if args.resume:
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr,
-                      momentum=0.9, weight_decay=5e-4)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
+                      momentum=0.9, weight_decay=args.weight_decay)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epoch)
 
 
 # Training
@@ -111,6 +117,8 @@ def train(epoch):
 
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                      % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+
+    return train_loss / len(trainloader), 100. * correct / total
 
 
 def test(epoch):
@@ -147,8 +155,28 @@ def test(epoch):
         torch.save(state, './checkpoint/ckpt.pth')
         best_acc = acc
 
+    return test_loss / len(testloader), acc
 
-for epoch in range(start_epoch, start_epoch+200):
-    train(epoch)
-    test(epoch)
+
+results = []
+for epoch in range(start_epoch, start_epoch + args.epoch):
+    tr_loss, tr_acc = train(epoch)
+    te_loss, te_acc = test(epoch)
     scheduler.step()
+    results.append({
+        'epoch': epoch,
+        'train_loss': tr_loss,
+        'train_acc': tr_acc,
+        'test_loss': te_loss,
+        'test_acc': te_acc,
+    })
+
+best_test_acc = max(r['test_acc'] for r in results)
+output = {
+    'best_test_acc': best_test_acc,
+    'history': results,
+}
+results_path = os.path.join(args.out_dir, 'results.json')
+with open(results_path, 'w') as f:
+    json.dump(output, f, indent=2)
+print(f'Results saved to {results_path}')

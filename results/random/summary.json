@@ -1,0 +1,36 @@
+{
+  "strategy": "random",
+  "best_acc": 83.59,
+  "runs": [
+    {
+      "iter": 1,
+      "lr": 0.05391,
+      "weight_decay": 0.000325,
+      "best_test_acc": 78.17
+    },
+    {
+      "iter": 2,
+      "lr": 0.05631,
+      "weight_decay": 0.000406,
+      "best_test_acc": 80.97
+    },
+    {
+      "iter": 3,
+      "lr": 0.02946,
+      "weight_decay": 0.000596,
+      "best_test_acc": 83.59
+    },
+    {
+      "iter": 4,
+      "lr": 0.07526,
+      "weight_decay": 0.00092,
+      "best_test_acc": 79.21
+    },
+    {
+      "iter": 5,
+      "lr": 0.00442,
+      "weight_decay": 0.000179,
+      "best_test_acc": 81.77
+    }
+  ]
+}

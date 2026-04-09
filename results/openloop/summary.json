@@ -1,0 +1,31 @@
+{
+  "strategy": "openloop",
+  "best_acc": 82.85,
+  "runs": [
+    {
+      "iter": 1,
+      "idea": "Add a channel attention mechanism (e.g., SE-block style) to each residual block.",
+      "best_test_acc": 82.85
+    },
+    {
+      "iter": 2,
+      "idea": "Replace ReLU activations with a more modern activation function like SiLU/Swish or GELU.",
+      "best_test_acc": 78.79
+    },
+    {
+      "iter": 3,
+      "idea": "Add a spatial attention module after each residual stage.",
+      "best_test_acc": 82.32
+    },
+    {
+      "iter": 4,
+      "idea": "Introduce dropout or stochastic depth regularization into the residual blocks.",
+      "best_test_acc": 66.79
+    },
+    {
+      "iter": 5,
+      "idea": "Modify the stem (first conv layer) and add a multi-scale feature fusion before the classifier.",
+      "best_test_acc": 82.1
+    }
+  ]
+}

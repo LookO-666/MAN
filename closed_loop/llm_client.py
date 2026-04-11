@@ -16,6 +16,13 @@ def get_token_usage():
             "total_tokens": _total_prompt_tokens + _total_completion_tokens}
 
 
+def _reset_token_usage():
+    """Reset cumulative token counters (used between independent runs)."""
+    global _total_prompt_tokens, _total_completion_tokens
+    _total_prompt_tokens = 0
+    _total_completion_tokens = 0
+
+
 def call_llm(system_prompt: str, user_prompt: str, *,
              api_key: str, base_url: str = "https://api.deepseek.com",
              model: str = "deepseek-chat", temperature: float = 0.7,

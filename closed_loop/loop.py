@@ -11,12 +11,14 @@ Usage:
 """
 
 import argparse
+import csv
 import json
 import os
 import re
 import random
 import time
 import sys
+from datetime import datetime, timezone
 
 from config import CONFIG
 from llm_client import call_llm, get_token_usage
@@ -25,6 +27,7 @@ from prompts import (
     CODE_IMPLEMENTATION_PROMPT,
     SCREENING_PROMPT,
     RESULT_ANALYSIS_PROMPT,
+    IDEA_REFINEMENT_PROMPT,
     NO_MINI_EXP_SCREENING_PROMPT,
 )
 from signal_extractor import extract_early_signals
@@ -38,15 +41,12 @@ from runner import ExperimentRunner
 
 def parse_llm_json(text: str):
     """Robustly extract and parse JSON from LLM output."""
-    # Try ```json ... ``` block first
     match = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
     if match:
         text = match.group(1)
-    # Try to find outermost [ ... ] or { ... }
     match = re.search(r'[\[{].*[\]}]', text, re.DOTALL)
     if match:
         text = match.group(0)
-    # Remove trailing commas before } or ]
     text = re.sub(r',\s*([}\]])', r'\1', text)
     return json.loads(text)
 
@@ -121,6 +121,212 @@ def build_suggestions_summary(all_round_results: list) -> str:
     return "\n".join(lines) if lines else "暂无历史建议。"
 
 
+def build_current_task_description(all_round_results: list, memory) -> str:
+    """Build a task description for relevance-based memory retrieval."""
+    recent_failures = memory.summarize_failure_patterns(top_k=2)
+    summary = build_history_summary(all_round_results)
+    parts = [
+        "CIFAR-10 ResNet-18 improvement search",
+        summary,
+    ]
+    if recent_failures:
+        parts.append("Recent failure patterns: " + " ; ".join(recent_failures))
+    return "\n".join(parts)
+
+
+def build_memory_context(memory, current_task_description: str, top_k: int = 5,
+                         disable_cfm: bool = False) -> tuple:
+    """Build memory-derived lesson text and generation guidance.
+
+    When *disable_cfm* is True the memory system degrades to a flat list of
+    (idea_name, accuracy) pairs — no constraints, no reusable-component hints,
+    no mechanism hypotheses.  This is the CFM ablation condition.
+    """
+    if disable_cfm:
+        flat_lines = []
+        for entry in memory.entries:
+            name = entry.get("idea_name", "?")
+            acc = entry.get("signals", {}).get("val_acc", "?")
+            outcome = entry.get("outcome", "?")
+            flat_lines.append(f"- {name}: val_acc={acc}, outcome={outcome}")
+        experience_lessons = "\n".join(flat_lines) if flat_lines else "暂无历史经验。"
+        generation_guidance = "暂无额外约束。"
+        return experience_lessons, generation_guidance
+
+    brief = memory.build_generation_brief(current_task_description, top_k=top_k)
+    experience_lessons = memory.format_for_prompt(brief.get("lessons", []))
+    generation_guidance = memory.format_generation_guidance(brief)
+    return experience_lessons, generation_guidance
+
+
+def infer_components_from_idea(idea: dict) -> list:
+    """Infer coarse components from an idea description."""
+    text = f"{idea.get('name', '')} {idea.get('description', '')}".lower()
+    mapping = {
+        "augmentation": ["mixup", "cutmix", "cutout", "augmentation", "randaugment", "autoaugment"],
+        "regularization": ["dropout", "stochastic depth", "weight decay", "label smoothing", "regularization"],
+        "optimization": ["sgd", "adam", "optimizer", "learning rate", "lr", "momentum", "warmup"],
+        "scheduler": ["cosine", "scheduler", "anneal", "decay"],
+        "architecture": ["resnet", "width", "depth", "block", "layer", "attention"],
+        "loss": ["loss", "distillation", "contrastive", "focal"],
+    }
+    matched = []
+    for component, keywords in mapping.items():
+        if any(keyword in text for keyword in keywords):
+            matched.append(component)
+    return matched or ["misc"]
+
+
+def build_memory_entry(round_num, idea, outcome, lesson, stage, signals=None,
+                       reusable_components="", failure_type="", mechanism_hypothesis="",
+                       avoid_pattern="", salvageable_parts=None, context=None,
+                       decision="", decision_reason=""):
+    """Build a structured memory record for one experiment outcome."""
+    return {
+        "round": round_num,
+        "idea_name": idea.get("name", "") if isinstance(idea, dict) else "",
+        "idea_description": idea.get("description", "") if isinstance(idea, dict) else "",
+        "outcome": outcome,
+        "stage": stage,
+        "signals": signals or {},
+        "lesson": lesson or "",
+        "reusable_components": reusable_components or "",
+        "failure_type": failure_type or "",
+        "mechanism_hypothesis": mechanism_hypothesis or "",
+        "avoid_pattern": avoid_pattern or "",
+        "decision": decision or "",
+        "decision_reason": decision_reason or "",
+        "salvageable_parts": salvageable_parts or [],
+        "components": infer_components_from_idea(idea if isinstance(idea, dict) else {}),
+        "context": context or {
+            "dataset": "CIFAR-10",
+            "model": "ResNet-18",
+            "stage": stage,
+        },
+    }
+
+
+def build_refinement_results_text(refine_item: dict) -> str:
+    """Build a short text block describing why an idea should be refined."""
+    signals = refine_item.get("signals", {}) or {}
+    lines = [
+        f"original idea: {refine_item.get('idea_name', '')}",
+        f"round: {refine_item.get('round', 0)} | stage: {refine_item.get('stage', 'mini')}",
+        f"lesson: {refine_item.get('lesson', '')}",
+    ]
+    if signals:
+        lines.append(
+            "signals: "
+            f"val_acc_delta={signals.get('val_acc_delta', 0):+.2f}, "
+            f"train_loss_slope={signals.get('train_loss_slope', 0):.4f}, "
+            f"val_loss_slope={signals.get('val_loss_slope', 0):.4f}, "
+            f"train_val_gap={signals.get('train_val_gap', 0):.2f}, "
+            f"gap_trend={signals.get('gap_trend', 0):+.2f}, "
+            f"val_loss_var={signals.get('val_loss_var', 0):.4f}, "
+            f"best_epoch={signals.get('best_epoch', 0)}"
+        )
+    return "\n".join(lines)
+
+
+def allocate_idea_budget(config: dict, memory, method: str) -> dict:
+    """Decide exploration vs exploitation budget without changing external config."""
+    total_candidates = 1 if method == "linear" else config["num_candidates"]
+    default_budget = {
+        "total": total_candidates,
+        "refine_slots": 0,
+        "new_slots": total_candidates,
+        "refine_targets": [],
+    }
+
+    if method in ("random", "single_shot", "no_feedback", "linear"):
+        return default_budget
+
+    try:
+        refine_targets = memory.get_ideas_to_refine(latest_round_only=True, top_k=total_candidates)
+    except Exception as e:
+        print(f"  ⚠ Failed to query refinement targets: {e}")
+        return default_budget
+
+    if not refine_targets:
+        return default_budget
+
+    refine_slots = min(len(refine_targets), max(1, total_candidates // 2))
+    new_slots = max(total_candidates - refine_slots, 0)
+    return {
+        "total": total_candidates,
+        "refine_slots": refine_slots,
+        "new_slots": new_slots,
+        "refine_targets": refine_targets[:refine_slots],
+    }
+
+
+# ---------------------------------------------------------------------------
+# CSV paper-results logger
+# ---------------------------------------------------------------------------
+
+_CSV_HEADER = [
+    "Timestamp", "Experiment_Mode", "Run_ID", "Round_Num", "Idea_Name",
+    "Is_Hit", "Val_Acc_Delta", "Final_Val_Acc", "Execution_Time_Seconds",
+    "Failure_Type", "Has_Syntax_Error",
+]
+
+
+def _init_csv_logger(config: dict) -> str:
+    """Ensure the CSV log file exists with a header row. Return its path."""
+    csv_path = os.path.join("logs", "paper_results_log.csv")
+    os.makedirs("logs", exist_ok=True)
+    if not os.path.exists(csv_path):
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(_CSV_HEADER)
+    return csv_path
+
+
+def _append_csv_row(csv_path: str, config: dict, round_num: int,
+                    idea_name: str, result: dict, baseline_acc: float,
+                    failure_type: str = "", has_syntax_error: int = 0):
+    """Append one evaluation row to the paper-results CSV."""
+    success = result.get("success", False)
+    final_acc = result.get("best_test_acc", 0.0) if success else 0.0
+    delta = (final_acc - baseline_acc) if success else 0.0
+    is_hit = 1 if (success and final_acc > baseline_acc) else 0
+    elapsed = result.get("elapsed_seconds", 0.0)
+
+    mode_tag = config.get("method", "unknown")
+    if config.get("disable_sef"):
+        mode_tag += "_no_sef"
+    if config.get("disable_cfm"):
+        mode_tag += "_no_cfm"
+
+    if not failure_type:
+        if success:
+            failure_type = ""
+        elif "timed out" in str(result.get("error", "")).lower():
+            failure_type = "timeout"
+        else:
+            failure_type = "runtime_error"
+
+    row = [
+        datetime.now(timezone.utc).isoformat(),
+        mode_tag,
+        config.get("run_id", 1),
+        round_num,
+        idea_name,
+        is_hit,
+        f"{delta:.4f}",
+        f"{final_acc:.4f}" if success else "0.0000",
+        f"{elapsed:.1f}",
+        failure_type,
+        has_syntax_error,
+    ]
+    try:
+        with open(csv_path, "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(row)
+    except Exception as e:
+        print(f"  ⚠ CSV write failed: {e}")
+
+
 # Pre-defined random modifications for the "random" ablation
 RANDOM_MODIFICATIONS = [
     {"name": "lr_0.05", "description": "Lower initial learning rate to 0.05"},
@@ -143,13 +349,19 @@ RANDOM_MODIFICATIONS = [
 def run_full_loop(config: dict):
     """Run the closed-loop research iteration."""
     method = config["method"]
+    disable_sef = config.get("disable_sef", False)
+    disable_cfm = config.get("disable_cfm", False)
+
     print(f"\n{'#'*60}")
     print(f"# Closed-Loop AI Research System")
     print(f"# Method: {method}")
     print(f"# Rounds: {config['num_rounds']}")
+    print(f"# disable_sef={disable_sef}  disable_cfm={disable_cfm}")
     print(f"{'#'*60}\n")
 
-    # LLM kwargs shared across calls
+    # Initialise CSV logger
+    csv_path = _init_csv_logger(config)
+
     llm_kw = dict(
         api_key=config["api_key"],
         base_url=config["base_url"],
@@ -165,14 +377,12 @@ def run_full_loop(config: dict):
     baseline_history = baseline_results["history"]
     baseline_acc = baseline_results["best_test_acc"]
 
-    # Read baseline source code
     with open(config["baseline_code_path"]) as f:
         baseline_code = f.read()
 
     all_round_results = []
     best_acc_so_far = baseline_acc
 
-    # For single_shot: one LLM call, one experiment, done
     if method == "single_shot":
         return _run_single_shot(config, llm_kw, runner, baseline_code,
                                 baseline_acc, baseline_history)
@@ -195,23 +405,29 @@ def run_full_loop(config: dict):
             "best_acc_so_far": best_acc_so_far,
             "llm_tokens_used": 0,
             "gpu_time_seconds": 0,
+            "idea_budget": {},
         }
 
-        # ========== Step 1: Generate candidate ideas ==========
         print("\n--- Step 1: Generating ideas ---")
 
         if method == "random":
             ideas = _generate_random_ideas(config)
+            round_log["idea_budget"] = {
+                "total": len(ideas),
+                "refine_slots": 0,
+                "new_slots": len(ideas),
+                "refine_targets": [],
+            }
         else:
-            ideas = _generate_ideas_llm(
+            ideas, budget_info = _generate_ideas_llm(
                 config, llm_kw, method, baseline_acc,
                 all_round_results, memory
             )
+            round_log["idea_budget"] = budget_info
 
         round_log["ideas_generated"] = ideas
         print(f"  Generated {len(ideas)} ideas: {[i['name'] for i in ideas]}")
 
-        # ========== Step 2: Implement code ==========
         print("\n--- Step 2: Implementing code ---")
         idea_codes = {}
         for idea in ideas:
@@ -230,23 +446,43 @@ def run_full_loop(config: dict):
             all_round_results.append(round_log)
             continue
 
-        # ========== Step 3: Mini-experiment screening ==========
-        survivors = list(idea_codes.keys())  # default: all pass
+        survivors = list(idea_codes.keys())
 
         if method in ("full", "no_memory", "no_llm_analysis") and len(idea_codes) > config["num_survivors"]:
             print("\n--- Step 3: Mini-experiment screening ---")
             mini_results = []
-            baseline_mini_signals = extract_early_signals(
-                baseline_history[:config["mini_epochs"]],
-                baseline_history[:config["mini_epochs"]]
-            )
+
+            # --- SEF ablation: degrade baseline signals ---
+            if disable_sef:
+                baseline_mini_signals = {
+                    "val_acc": baseline_history[config["mini_epochs"] - 1]["test_acc"]
+                              if len(baseline_history) >= config["mini_epochs"] else 0,
+                    "val_acc_delta": 0, "train_loss_slope": 0, "val_loss_slope": 0,
+                    "train_val_gap": 0, "gap_trend": 0, "val_loss_var": 0, "best_epoch": 0,
+                }
+            else:
+                baseline_mini_signals = extract_early_signals(
+                    baseline_history[:config["mini_epochs"]],
+                    baseline_history[:config["mini_epochs"]]
+                )
 
             for idea_name, code in idea_codes.items():
                 exp_name = f"round{round_num}_mini_{idea_name}"
                 result = runner.run_experiment(code, exp_name, config["mini_epochs"], config["seed"])
                 signals = {}
                 if result.get("success"):
-                    signals = extract_early_signals(result["history"], baseline_history)
+                    # --- SEF ablation: only keep basic val_acc ---
+                    if disable_sef:
+                        last_acc = result["history"][-1]["test_acc"] if result.get("history") else 0
+                        signals = {
+                            "val_acc": last_acc,
+                            "val_acc_delta": last_acc - baseline_mini_signals["val_acc"],
+                            "train_loss_slope": 0, "val_loss_slope": 0,
+                            "train_val_gap": 0, "gap_trend": 0,
+                            "val_loss_var": 0, "best_epoch": 0,
+                        }
+                    else:
+                        signals = extract_early_signals(result["history"], baseline_history)
                 mini_results.append({
                     "idea_name": idea_name,
                     "result": result,
@@ -259,20 +495,17 @@ def run_full_loop(config: dict):
                 for m in mini_results
             ]
 
-            # Filter to only successful mini-experiments
             valid_minis = [m for m in mini_results if m["result"].get("success")]
 
             if not valid_minis:
                 print("  All mini-experiments failed. Using first available code.")
                 survivors = list(idea_codes.keys())[:config["num_survivors"]]
             elif method == "no_llm_analysis":
-                # Sort by val_acc descending
                 valid_minis.sort(key=lambda m: m["signals"].get("val_acc", 0), reverse=True)
                 survivors = [m["idea_name"] for m in valid_minis[:config["num_survivors"]]]
                 screening = {"method": "val_acc_ranking", "selected": survivors}
                 round_log["screening_decision"] = screening
             else:
-                # LLM screening
                 candidates_table = build_candidates_table(valid_minis, baseline_mini_signals)
                 screening = _screen_with_llm(
                     config, llm_kw, valid_minis, baseline_mini_signals, candidates_table
@@ -280,52 +513,85 @@ def run_full_loop(config: dict):
                 round_log["screening_decision"] = screening
                 survivors = screening.get("selected", [m["idea_name"] for m in valid_minis[:config["num_survivors"]]])
 
-                # Store rejected lessons in memory (unless no_memory)
                 if method != "no_memory":
+                    analysis_items = {
+                        item.get("idea_name"): item
+                        for item in screening.get("analysis", [])
+                        if isinstance(item, dict)
+                    }
                     for rl in screening.get("rejected_lessons", []):
                         rejected_idea = next((i for i in ideas if i["name"] == rl.get("idea_name")), {})
-                        memory.add_entry({
-                            "round": round_num,
-                            "idea_name": rl.get("idea_name", ""),
-                            "idea_description": rejected_idea.get("description", ""),
-                            "outcome": "rejected",
-                            "signals": next((m["signals"] for m in mini_results if m["idea_name"] == rl.get("idea_name")), {}),
-                            "lesson": rl.get("lesson", ""),
-                            "reusable_components": rl.get("reusable_components", ""),
-                        })
+                        rejected_signals = next(
+                            (m["signals"] for m in mini_results if m["idea_name"] == rl.get("idea_name")),
+                            {}
+                        )
+                        analysis_item = analysis_items.get(rl.get("idea_name"), {})
+                        memory.add_entry(build_memory_entry(
+                            round_num=round_num,
+                            idea=rejected_idea,
+                            outcome="rejected",
+                            lesson=rl.get("lesson", ""),
+                            stage="mini",
+                            signals=rejected_signals,
+                            reusable_components=rl.get("reusable_components", ""),
+                            failure_type=rl.get("failure_type", ""),
+                            mechanism_hypothesis=rl.get("mechanism_hypothesis", ""),
+                            avoid_pattern=rl.get("avoid_pattern", ""),
+                            salvageable_parts=[],
+                            decision=rl.get("decision", analysis_item.get("decision", "")),
+                            decision_reason=rl.get("decision_reason", analysis_item.get("decision_reason", "")),
+                        ))
 
             print(f"  Survivors: {survivors}")
 
         elif method == "no_mini_exp" and len(idea_codes) > config["num_survivors"]:
             print("\n--- Step 3: LLM-based screening (no mini-exp) ---")
-            screening = _screen_no_mini_exp(config, llm_kw, ideas, memory)
+            screening = _screen_no_mini_exp(config, llm_kw, ideas, memory, all_round_results)
             survivors = screening.get("selected", list(idea_codes.keys())[:config["num_survivors"]])
             round_log["screening_decision"] = screening
             print(f"  Survivors: {survivors}")
 
-        # For linear method, there's only 1 idea, so no screening needed
-
-        # Keep only survivors that have code
         survivors = [s for s in survivors if s in idea_codes]
         if not survivors:
             survivors = list(idea_codes.keys())[:config["num_survivors"]]
 
-        # ========== Step 4: Full experiment ==========
         print("\n--- Step 4: Full experiments ---")
         full_results = []
         for idea_name in survivors:
-            code = idea_codes[idea_name]
-            exp_name = f"round{round_num}_full_{idea_name}"
-            print(f"  Running full experiment: {idea_name} ({config['full_epochs']} epochs)")
-            result = runner.run_experiment(code, exp_name, config["full_epochs"], config["seed"])
-            result["idea_name"] = idea_name
-            full_results.append(result)
+            try:
+                code = idea_codes[idea_name]
+                exp_name = f"round{round_num}_full_{idea_name}"
+                print(f"  Running full experiment: {idea_name} ({config['full_epochs']} epochs)")
+                result = runner.run_experiment(code, exp_name, config["full_epochs"], config["seed"])
+                result["idea_name"] = idea_name
+                full_results.append(result)
 
-            if result.get("success"):
-                acc = result.get("best_test_acc", 0)
-                if acc > best_acc_so_far:
-                    best_acc_so_far = acc
-                    print(f"  🎉 New best: {acc}% (was {round_log['best_acc_so_far']}%)")
+                # CSV logging for every evaluation
+                _append_csv_row(csv_path, config, round_num, idea_name,
+                                result, baseline_acc)
+
+                if result.get("success"):
+                    acc = result.get("best_test_acc", 0)
+                    if acc > best_acc_so_far:
+                        best_acc_so_far = acc
+                        print(f"  🎉 New best: {acc}% (was {round_log['best_acc_so_far']}%)")
+
+            except Exception as exc:
+                # Bulletproofing: never let a single idea crash the loop
+                print(f"  💥 EXCEPTION running {idea_name}: {exc}")
+                error_result = {
+                    "success": False,
+                    "error": str(exc),
+                    "elapsed_seconds": 0,
+                    "experiment_name": f"round{round_num}_full_{idea_name}",
+                    "idea_name": idea_name,
+                }
+                full_results.append(error_result)
+                _append_csv_row(csv_path, config, round_num, idea_name,
+                                error_result, baseline_acc,
+                                failure_type="implementation_bug",
+                                has_syntax_error=1)
+                continue
 
         round_log["full_experiment_results"] = full_results
         round_log["best_acc_this_round"] = max(
@@ -334,31 +600,34 @@ def run_full_loop(config: dict):
         )
         round_log["best_acc_so_far"] = best_acc_so_far
 
-        # ========== Step 5: Result analysis ==========
         print("\n--- Step 5: Analyzing results ---")
         if method != "random":
             analysis = _analyze_results(
                 config, llm_kw, full_results, baseline_acc,
-                best_acc_so_far, memory
+                best_acc_so_far, memory, all_round_results
             )
             round_log["analysis"] = analysis
 
-            # Store lessons in memory
             if method not in ("no_memory", "no_feedback"):
                 for exp_analysis in analysis.get("experiment_analyses", []):
                     idea_obj = next((i for i in ideas if i["name"] == exp_analysis.get("idea_name")), {})
                     outcome = "success" if exp_analysis.get("effective") else "failure"
-                    memory.add_entry({
-                        "round": round_num,
-                        "idea_name": exp_analysis.get("idea_name", ""),
-                        "idea_description": idea_obj.get("description", ""),
-                        "outcome": outcome,
-                        "signals": {},
-                        "lesson": exp_analysis.get("reason", ""),
-                        "reusable_components": "",
-                    })
+                    memory.add_entry(build_memory_entry(
+                        round_num=round_num,
+                        idea=idea_obj,
+                        outcome=outcome,
+                        lesson=exp_analysis.get("reason", ""),
+                        stage="full",
+                        signals={},
+                        reusable_components="; ".join(exp_analysis.get("salvageable_parts", [])),
+                        failure_type=exp_analysis.get("failure_type", ""),
+                        mechanism_hypothesis=exp_analysis.get("mechanism_hypothesis", ""),
+                        avoid_pattern=exp_analysis.get("avoid_pattern", ""),
+                        salvageable_parts=exp_analysis.get("salvageable_parts", []),
+                        decision=exp_analysis.get("decision", ""),
+                        decision_reason=exp_analysis.get("decision_reason", ""),
+                    ))
 
-        # ========== Step 6: Save round log ==========
         round_log["gpu_time_seconds"] = sum(
             r.get("elapsed_seconds", 0) for r in full_results
         ) + sum(
@@ -371,13 +640,11 @@ def run_full_loop(config: dict):
 
         all_round_results.append(round_log)
 
-        # Save incremental results
         log_path = os.path.join(config["output_dir"], f"round_{round_num}_log.json")
         with open(log_path, "w") as f:
             json.dump(round_log, f, indent=2, ensure_ascii=False, default=str)
         print(f"\n  Round log saved to {log_path}")
 
-    # ========== Final summary ==========
     _save_final_summary(config, all_round_results, baseline_acc, best_acc_so_far)
 
 
@@ -386,48 +653,125 @@ def run_full_loop(config: dict):
 # ---------------------------------------------------------------------------
 
 def _generate_ideas_llm(config, llm_kw, method, baseline_acc,
-                         all_round_results, memory):
-    """Generate ideas using LLM."""
-    num_ideas = 1 if method == "linear" else config["num_candidates"]
+                        all_round_results, memory):
+    """Generate ideas using dynamic exploration-vs-exploitation budgeting."""
+    disable_cfm = config.get("disable_cfm", False)
+    force_empty = config.get("force_empty_memory", False)
 
+    total_candidates = 1 if method == "linear" else config["num_candidates"]
     history_summary = "暂无（不使用历史反馈）" if method == "no_feedback" else build_history_summary(all_round_results)
+    current_task_description = build_current_task_description(all_round_results, memory)
 
-    if method in ("no_memory", "no_feedback"):
+    if method in ("no_memory", "no_feedback") or force_empty:
         experience_lessons = "暂无（不使用经验记忆）"
+        generation_guidance = "暂无（不使用经验记忆）"
     else:
-        lessons = memory.get_relevant_lessons("", top_k=5)
-        experience_lessons = memory.format_for_prompt(lessons)
+        experience_lessons, generation_guidance = build_memory_context(
+            memory, current_task_description, top_k=5,
+            disable_cfm=disable_cfm,
+        )
 
-    if method in ("no_memory", "no_feedback"):
+    if method in ("no_memory", "no_feedback") or force_empty:
         previous_suggestions = "暂无（不使用历史反馈）"
     else:
         previous_suggestions = build_suggestions_summary(all_round_results)
 
-    prompt = IDEA_GENERATION_PROMPT.format(
-        baseline_acc=baseline_acc,
-        history_summary=history_summary,
-        experience_lessons=experience_lessons,
-        previous_suggestions=previous_suggestions,
-        num_ideas=num_ideas,
-    )
+    budget_info = allocate_idea_budget(config, memory, method)
+    ideas = []
 
-    response = call_llm("你是一位ML研究专家。", prompt, **llm_kw)
-    try:
-        ideas = parse_llm_json(response)
-        if not isinstance(ideas, list):
-            ideas = [ideas]
-        return ideas[:num_ideas]
-    except Exception as e:
-        print(f"  ⚠ Failed to parse ideas JSON: {e}")
-        print(f"  Raw response: {response[:500]}")
-        return [{"name": "fallback_idea", "description": "Increase weight decay to 1e-3",
-                 "category": "正则化", "expected_improvement": "+0.2%"}]
+    if budget_info["refine_slots"] > 0:
+        print(
+            f"  Budget split: {budget_info['refine_slots']} refinement slots + "
+            f"{budget_info['new_slots']} exploration slots"
+        )
+        per_target = max(1, budget_info["refine_slots"] // max(len(budget_info["refine_targets"]), 1))
+        remaining_refine = budget_info["refine_slots"]
+        for idx, refine_target in enumerate(budget_info["refine_targets"]):
+            if remaining_refine <= 0:
+                break
+            num_refinements = per_target
+            if idx == len(budget_info["refine_targets"]) - 1:
+                num_refinements = remaining_refine
+            num_refinements = max(1, min(num_refinements, remaining_refine))
+            try:
+                refined = _refine_idea_llm(refine_target, num_refinements, llm_kw)
+                ideas.extend(refined[:num_refinements])
+                remaining_refine -= len(refined[:num_refinements])
+            except Exception as e:
+                print(f"  ⚠ Refinement generation failed for {refine_target.get('idea_name', '?')}: {e}")
+
+    missing_exploration = total_candidates - len(ideas)
+    if missing_exploration < 0:
+        ideas = ideas[:total_candidates]
+        missing_exploration = 0
+
+    if missing_exploration > 0:
+        try:
+            prompt = IDEA_GENERATION_PROMPT.format(
+                baseline_acc=baseline_acc,
+                history_summary=history_summary,
+                experience_lessons=experience_lessons,
+                generation_guidance=generation_guidance,
+                previous_suggestions=previous_suggestions,
+                num_ideas=missing_exploration,
+            )
+            response = call_llm("你是一位ML研究专家。", prompt, **llm_kw)
+            new_ideas = parse_llm_json(response)
+            if not isinstance(new_ideas, list):
+                new_ideas = [new_ideas]
+            ideas.extend(new_ideas[:missing_exploration])
+        except Exception as e:
+            print(f"  ⚠ Failed to generate exploration ideas: {e}")
+
+    if not ideas:
+        print("  ⚠ No ideas generated; using fallback.")
+        ideas = [{
+            "name": "fallback_idea",
+            "description": "Increase weight decay to 1e-3",
+            "category": "正则化",
+            "expected_improvement": "+0.2%"
+        }]
+
+    deduped = []
+    seen = set()
+    for idea in ideas:
+        name = idea.get("name", "")
+        if not name or name in seen:
+            continue
+        deduped.append(idea)
+        seen.add(name)
+        if len(deduped) >= total_candidates:
+            break
+
+    if not deduped:
+        deduped = ideas[:total_candidates]
+
+    budget_info["new_slots"] = max(total_candidates - min(budget_info.get("refine_slots", 0), len(deduped)), 0)
+    return deduped[:total_candidates], budget_info
+
+
+def _refine_idea_llm(refine_target: dict, num_refinements: int, llm_kw: dict) -> list:
+    """Generate refined variants for a previously promising idea."""
+    prompt = IDEA_REFINEMENT_PROMPT.format(
+        original_idea_name=refine_target.get("idea_name", "unknown_idea"),
+        original_idea_description=refine_target.get("idea_description", ""),
+        original_idea_category=refine_target.get("category", "其他"),
+        experiment_results=build_refinement_results_text(refine_target),
+        decision_reason=refine_target.get("decision_reason", ""),
+        failure_type=refine_target.get("failure_type", "underperformance"),
+        mechanism_hypothesis=refine_target.get("mechanism_hypothesis", ""),
+        num_refinements=num_refinements,
+    )
+    response = call_llm("你是一位ML研究专家，擅长改良已有思路。", prompt, **llm_kw)
+    refined = parse_llm_json(response)
+    if not isinstance(refined, list):
+        refined = [refined]
+    return refined[:num_refinements]
 
 
 def _generate_random_ideas(config):
-    """Pick random modifications for the random ablation."""
-    n = config["num_candidates"]
-    return random.sample(RANDOM_MODIFICATIONS, min(n, len(RANDOM_MODIFICATIONS)))
+    """Pick one random modification per round for the random search baseline."""
+    return [random.choice(RANDOM_MODIFICATIONS)]
 
 
 def _implement_idea_llm(idea, baseline_code, llm_kw):
@@ -442,7 +786,6 @@ def _implement_idea_llm(idea, baseline_code, llm_kw):
         code = extract_code(response)
         if "import" in code and "def train" in code:
             return code
-        # If extraction looks wrong, return the whole response stripped
         if len(code) > 500 and "torch" in code:
             return code
         print(f"  ⚠ Code for {idea['name']} looks incomplete, using anyway")
@@ -474,15 +817,14 @@ def _generate_random_code(idea, baseline_code):
             "criterion = nn.CrossEntropyLoss(label_smoothing=0.1)"
         )
     elif name == "mixup_alpha_1.0":
-        # Insert mixup logic — simplified: just change loss
         code = code.replace(
             "criterion = nn.CrossEntropyLoss()",
             "criterion = nn.CrossEntropyLoss(label_smoothing=0.1)"
         )
     elif name == "cutout_16":
-        code = code.replace("batch_size=128", "batch_size=128")  # no-op fallback
+        code = code.replace("batch_size=128", "batch_size=128")
     elif name == "dropout_0.3":
-        code = code.replace("batch_size=128", "batch_size=128")  # no-op fallback
+        code = code.replace("batch_size=128", "batch_size=128")
     return code
 
 
@@ -503,7 +845,6 @@ def _screen_with_llm(config, llm_kw, valid_minis, baseline_signals, candidates_t
         return parse_llm_json(response)
     except Exception as e:
         print(f"  ⚠ Screening parse failed: {e}")
-        # Fallback: pick top by val_acc
         valid_minis.sort(key=lambda m: m["signals"].get("val_acc", 0), reverse=True)
         return {
             "selected": [m["idea_name"] for m in valid_minis[:config["num_survivors"]]],
@@ -511,10 +852,11 @@ def _screen_with_llm(config, llm_kw, valid_minis, baseline_signals, candidates_t
         }
 
 
-def _screen_no_mini_exp(config, llm_kw, ideas, memory):
+def _screen_no_mini_exp(config, llm_kw, ideas, memory, all_round_results):
     """Screen ideas without mini-experiments, using LLM judgment only."""
-    lessons = memory.get_relevant_lessons("", top_k=5)
-    experience_text = memory.format_for_prompt(lessons)
+    current_task_description = build_current_task_description(all_round_results, memory)
+    brief = memory.build_generation_brief(current_task_description, top_k=5)
+    experience_text = memory.format_for_prompt(brief.get("lessons", []))
     ideas_text = "\n".join(
         f"- {i['name']}: {i['description']} (类型: {i.get('category', '?')})"
         for i in ideas
@@ -534,11 +876,12 @@ def _screen_no_mini_exp(config, llm_kw, ideas, memory):
 
 
 def _analyze_results(config, llm_kw, full_results, baseline_acc,
-                      best_so_far, memory):
+                     best_so_far, memory, all_round_results):
     """Use LLM to analyze full experiment results."""
     results_summary = build_results_summary(full_results)
-    lessons = memory.get_relevant_lessons("", top_k=5)
-    experience_text = memory.format_for_prompt(lessons)
+    current_task_description = build_current_task_description(all_round_results, memory)
+    brief = memory.build_generation_brief(current_task_description, top_k=5)
+    experience_text = memory.format_for_prompt(brief.get("lessons", []))
 
     prompt = RESULT_ANALYSIS_PROMPT.format(
         baseline_best_acc=baseline_acc,
@@ -551,8 +894,12 @@ def _analyze_results(config, llm_kw, full_results, baseline_acc,
         return parse_llm_json(response)
     except Exception as e:
         print(f"  ⚠ Analysis parse failed: {e}")
-        return {"round_summary": "Analysis failed", "experiment_analyses": [],
-                "lessons_learned": [], "next_round_suggestions": []}
+        return {
+            "round_summary": "Analysis failed",
+            "experiment_analyses": [],
+            "lessons_learned": [],
+            "next_round_suggestions": []
+        }
 
 
 def _run_single_shot(config, llm_kw, runner, baseline_code, baseline_acc, baseline_history):
@@ -562,7 +909,7 @@ def _run_single_shot(config, llm_kw, runner, baseline_code, baseline_acc, baseli
         save_path=os.path.join(config["output_dir"], "experience_memory.json")
     )
 
-    ideas = _generate_ideas_llm(config, llm_kw, "full", baseline_acc, [], memory)
+    ideas, _ = _generate_ideas_llm(config, llm_kw, "full", baseline_acc, [], memory)
     if not ideas:
         print("No ideas generated.")
         return
@@ -625,6 +972,7 @@ def _save_final_summary(config, all_round_results, baseline_acc, best_acc_so_far
             "ideas_count": n_ideas,
             "best_acc_this_round": rr.get("best_acc_this_round"),
             "best_acc_so_far": rr.get("best_acc_so_far"),
+            "idea_budget": rr.get("idea_budget", {}),
         })
 
     summary["total_ideas_generated"] = total_ideas
@@ -655,14 +1003,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     config = CONFIG.copy()
-    # Override from command line
     for key in ["method", "num_rounds", "num_candidates", "num_survivors",
                 "mini_epochs", "full_epochs", "api_key", "seed"]:
         val = getattr(args, key, None)
         if val is not None:
             config[key] = val
 
-    # Create output directory with method name
     config["output_dir"] = os.path.join("experiments", config["method"])
     os.makedirs(config["output_dir"], exist_ok=True)
 

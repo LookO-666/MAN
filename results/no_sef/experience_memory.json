@@ -1,0 +1,873 @@
+[
+  {
+    "round": 1,
+    "idea_name": "cutmix_augmentation",
+    "idea_description": "在训练中添加 CutMix 数据增强，随机裁剪并混合两张图像及其标签。这能提高模型对局部特征的鲁棒性，并起到正则化作用，减少过拟合。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 71.64,
+      "val_acc_delta": 1.3799999999999955,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "在极早期（5 epoch）未观察到任何学习动态或性能提升，可能表明该增强策略在当前任务/架构/超参设置下无效。",
+    "reusable_components": "CutMix数据增强的实现逻辑本身，未来可尝试与其他正则化方法（如Label Smoothing）或不同的模型架构结合。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "CutMix的混合策略可能与本任务的数据特性或模型早期学习阶段不匹配，未能提供有效的归纳偏差。",
+    "avoid_pattern": "避免在未观察到任何早期学习动态（loss下降、acc提升）的情况下，盲目对数据增强方法进行长周期训练。",
+    "decision": "DISCARD",
+    "decision_reason": "train_loss_slope和val_loss_slope均为0，gap_trend为0，表明在5个epoch内该方法未产生任何可观测的学习效果或泛化变化，属于真·死胡同。",
+    "salvageable_parts": [
+      "CutMix数据增强的实现逻辑本身，未来可尝试与其他正则化方法（如Label Smoothing）或不同的模型架构结合。"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 1,
+    "idea_name": "label_smoothing",
+    "idea_description": "将交叉熵损失函数替换为带标签平滑的版本，将硬标签（0或1）替换为软标签（如0.9和0.1）。这能防止模型对训练标签过度自信，提高泛化能力。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 77.64,
+      "val_acc_delta": 7.3799999999999955,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "尽管早期准确率提升明显，但缺乏学习动态曲线，无法可靠预测其长期行为，可能属于“慢热”或对超参敏感的方法。",
+    "reusable_components": "Label Smoothing作为一种经典的正则化技术，其思想可以融入任何分类任务中，尤其适合与容易过拟合的模型结合。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "在极短训练周期内，其正则化效果可能尚未通过动态的学习曲线充分体现，仅表现为初始准确率的静态偏移。",
+    "avoid_pattern": "未来评估正则化技术时，需确保训练周期足够长以观察其对于泛化gap的影响趋势，而非仅依赖极早期的准确率。",
+    "decision": "REFINE",
+    "decision_reason": "当前val_acc提升显著，但所有学习动态指标（slope, gap_trend）均为0，属于慢热稳定型，需要延长训练或调整超参数以观察其真实潜力。",
+    "salvageable_parts": [
+      "Label Smoothing作为一种经典的正则化技术，其思想可以融入任何分类任务中，尤其适合与容易过拟合的模型结合。"
+    ],
+    "components": [
+      "misc"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 1,
+    "idea_name": "stochastic_depth",
+    "idea_description": "在 ResNet-18 中引入随机深度（Stochastic Depth），以一定概率随机丢弃网络中的某些残差块。这能增强模型鲁棒性，起到类似 Dropout 的正则化效果，并加速训练。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 74.51,
+      "val_acc_delta": 4.25,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "与Label Smoothing情况类似，有中等程度的早期收益，但缺乏动态信号来确认其是否改善了模型的学习过程或泛化能力。",
+    "reusable_components": "随机深度作为一种结构化Dropout，其模块化设计可以方便地集成到残差网络架构中。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "在训练极早期，随机丢弃层可能尚未对模型的学习轨迹产生可区分的动态影响，其好处可能在后期防止过拟合时才显现。",
+    "avoid_pattern": "对于这类旨在改善训练动态和泛化的结构修改，短周期实验可能无法揭示其核心价值，需要更长的观察窗口。",
+    "decision": "REFINE",
+    "decision_reason": "与label_smoothing类似，val_acc有提升但学习动态全无，属于慢热稳定型，值得通过调整训练策略（如更长周期）进一步探索。",
+    "salvageable_parts": [
+      "随机深度作为一种结构化Dropout，其模块化设计可以方便地集成到残差网络架构中。"
+    ],
+    "components": [
+      "regularization",
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 1,
+    "idea_name": "warmup_cosine_lr",
+    "idea_description": "在 CosineAnnealingLR 学习率调度器前添加线性预热（Warmup）阶段（例如 5-10 个 epoch）。这能避免训练初期因学习率过大导致的不稳定，有助于模型收敛到更好的局部最优。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 64.97,
+      "val_acc_delta": -5.290000000000006,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "在极早期表现不佳，且无积极动态，表明该学习率调度策略的初始阶段可能不利于本任务的收敛。",
+    "reusable_components": "Warmup和Cosine衰减的调度逻辑，可以尝试调整warmup长度或初始学习率后应用于其他实验。",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "Warmup阶段设置的学习率可能过低，导致模型在关键的前几个epoch内学习速度过慢，落后于baseline的固定学习率。",
+    "avoid_pattern": "避免在未进行超参数扫描（特别是warmup长度和起始学习率）的情况下，直接采用复杂的学习率调度并期望其在所有任务上有效。",
+    "decision": "DISCARD",
+    "decision_reason": "val_acc显著低于baseline，且所有动态指标为0，表明该学习率调度在早期未起到积极作用，属于真·死胡同。",
+    "salvageable_parts": [
+      "Warmup和Cosine衰减的调度逻辑，可以尝试调整warmup长度或初始学习率后应用于其他实验。"
+    ],
+    "components": [
+      "optimization",
+      "scheduler"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 1,
+    "idea_name": "se_block_integration",
+    "idea_description": "在 ResNet-18 的每个残差块中集成 Squeeze-and-Excitation (SE) 注意力模块。SE 模块能自适应地重新校准通道特征响应，提升模型对重要特征的关注度。",
+    "outcome": "failure",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试准确率略低于baseline，表明SE模块在当前架构或训练设置下未能带来显著的性能提升，可能其注意力机制带来的收益被额外的参数和计算开销所抵消。",
+    "reusable_components": "SE模块的通道注意力计算逻辑; Squeeze-and-Excitation的架构思想",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "SE模块的通道注意力机制可能与本任务（或ResNet-18）的特征分布不完全匹配，或引入的少量参数未能有效提升模型容量。",
+    "avoid_pattern": "避免在未充分验证其与模型架构、任务特性兼容性的情况下，直接引入复杂的注意力模块。",
+    "decision": "REFINE",
+    "decision_reason": "属于“慢热稳定型”，其性能与baseline差距极小，且SE模块作为一种成熟的注意力机制，通过调整其位置（如仅在深层使用）、压缩比或结合其他技术（如与mixup联用）仍有潜力可挖。",
+    "salvageable_parts": [
+      "SE模块的通道注意力计算逻辑",
+      "Squeeze-and-Excitation的架构思想"
+    ],
+    "components": [
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 1,
+    "idea_name": "mixup_augmentation",
+    "idea_description": "在训练中添加 Mixup 数据增强，对两张图像及其标签进行线性插值。这能鼓励模型在类别之间学习更线性的行为，提高对对抗样本的鲁棒性和泛化能力。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试准确率显著超越baseline，并创下历史最优，表明mixup作为一种数据增强和正则化策略，有效提升了模型的泛化能力。",
+    "reusable_components": "Mixup数据增强的实现; 混合样本训练范式",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "Mixup通过线性插值生成虚拟训练样本，平滑了决策边界，提供了有效的归纳偏差，从而减少了过拟合并提高了泛化性能。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "成功超越baseline并创下新高，是明确的有效组件，应保留并考虑作为下一轮实验的基准或组合基础。",
+    "salvageable_parts": [
+      "Mixup数据增强的实现",
+      "混合样本训练范式"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 2,
+    "idea_name": "label_smoothing_v2a",
+    "idea_description": "在原始方案基础上，引入动态标签平滑系数（Dynamic Smoothing Factor），使其在训练初期使用较小的平滑强度（如0.05），随着训练进行逐步增大至目标值（如0.1），让模型先快速拟合基础模式，再逐步增强正则化效果。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 71.54,
+      "val_acc_delta": 1.2800000000000011,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "单独使用标签平滑在早期训练中未显示出任何积极的学习信号或正则化效果。",
+    "reusable_components": "标签平滑作为一种标准正则化技术，其思想（软化目标）仍具价值，但可能需要与更激进的优化策略（如更高的学习率）或特定架构结合。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "标签平滑的强度可能过低，或模型在早期对软标签不敏感，导致损失曲面和梯度动态未发生改变。",
+    "avoid_pattern": "避免在超参数未经充分搜索（如平滑系数）的情况下，单独依赖温和的正则化技术并期望其在极早期产生显著信号。",
+    "decision": "DISCARD",
+    "decision_reason": "所有学习动态指标（tr_slope, val_slope, gap_trend, val_var）均为零，表明该方法在5个epoch内未产生任何可观测的学习效应，属于真·死胡同。",
+    "salvageable_parts": [
+      "标签平滑作为一种标准正则化技术，其思想（软化目标）仍具价值，但可能需要与更激进的优化策略（如更高的学习率）或特定架构结合。"
+    ],
+    "components": [
+      "misc"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 2,
+    "idea_name": "stochastic_depth_v2a",
+    "idea_description": "在原始方案基础上，引入线性衰减的存活概率（Linear Decay Survival Probability）。具体而言，为网络中不同深度的残差块分配不同的丢弃概率，靠近输入的浅层块存活概率高（如1.0），靠近输出的深层块存活概率逐渐降低（如0.5），形成一个从输入到输出逐渐增大的丢弃概率斜坡。这模拟了网络训练中深层特征更易过拟合、更需要正则化的直觉。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 52.03,
+      "val_acc_delta": -18.230000000000004,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "随机深度在模型早期严重阻碍了收敛，可能是丢弃率设置不当或与模型架构不兼容。",
+    "reusable_components": "随机深度作为一种隐式集成和正则化技术，其核心思想（动态路径）仍有潜力，但需要精细调整。",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "过高的丢弃率或不当的丢弃调度，在训练初期过度破坏了前向/反向传播路径，导致模型无法有效学习。",
+    "avoid_pattern": "避免在未进行小规模消融实验（验证丢弃率影响）的情况下，直接将随机深度应用于新架构，尤其是在训练初期。",
+    "decision": "DISCARD",
+    "decision_reason": "val_acc大幅下降18.23%，且所有学习动态指标为零，表明模型不仅没学到，甚至破坏了基线能力，属于真·死胡同。",
+    "salvageable_parts": [
+      "随机深度作为一种隐式集成和正则化技术，其核心思想（动态路径）仍有潜力，但需要精细调整。"
+    ],
+    "components": [
+      "scheduler",
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 2,
+    "idea_name": "mixup_label_smoothing_combination",
+    "idea_description": "将已成功的Mixup数据增强与标签平滑（Label Smoothing）结合使用。Mixup通过线性插值平滑决策边界，而标签平滑通过软化标签分布提供正则化。预期两者能产生协同效应，进一步提升模型泛化能力，减少过拟合。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 64.29,
+      "val_acc_delta": -5.969999999999999,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "MixUp与标签平滑的简单叠加并未产生预期的正则化协同效应，反而可能相互抵消或引入混淆。",
+    "reusable_components": "MixUp和标签平滑各自作为数据级和标签级正则化组件，仍可独立探索或与更复杂的调度策略结合。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "两种方法同时作用可能使标签过于“模糊”或“平滑”，削弱了各自提供的有效学习信号，导致优化停滞。",
+    "avoid_pattern": "避免在没有理论或经验指导的情况下，简单叠加多种作用于同一层面（如标签或样本插值）的正则化方法。",
+    "decision": "DISCARD",
+    "decision_reason": "val_acc下降近6%，且所有学习动态指标为零，表明两种正则化方法的简单组合在当前设置下无效，未激发任何学习，属于真·死胡同。",
+    "salvageable_parts": [
+      "MixUp和标签平滑各自作为数据级和标签级正则化组件，仍可独立探索或与更复杂的调度策略结合。"
+    ],
+    "components": [
+      "augmentation",
+      "regularization"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 2,
+    "idea_name": "progressive_mixup_strength",
+    "idea_description": "在训练过程中动态调整Mixup的混合系数α。早期使用较小的α（温和混合）以稳定学习，后期逐渐增大α（更强混合）以增强正则化效果。这模拟了课程学习思想，使模型逐步适应更难的增强样本，可能比固定α的Mixup带来更好的泛化。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 67.04,
+      "val_acc_delta": -3.219999999999999,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "渐进式增强MixUp强度的策略在训练初期过于保守，未能及时提供有效的正则化或数据多样性刺激。",
+    "reusable_components": "“渐进式增强”的调度思想本身有价值，可应用于其他超参数（如学习率、裁剪强度）。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "初始的MixUp强度可能设置为零或极低，导致前几个epoch等同于基线训练，未能触发任何不同的学习动态。",
+    "avoid_pattern": "避免设计在训练初期完全“沉默”的渐进式策略，应确保从第一个epoch起就引入可测量的变化。",
+    "decision": "DISCARD",
+    "decision_reason": "val_acc下降3.22%，且所有学习动态指标为零，表明渐进式增强策略在初期未激活模型学习，属于真·死胡同。",
+    "salvageable_parts": [
+      "“渐进式增强”的调度思想本身有价值，可应用于其他超参数（如学习率、裁剪强度）。"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 2,
+    "idea_name": "se_block_integration_v2a",
+    "idea_description": "在ResNet-18的残差块中集成SE模块，但仅在网络的后半部分（例如第3和第4阶段）的残差块中使用，而保持前半部分（第1和第2阶段）的残差块为原始结构。",
+    "outcome": "failure",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试准确率略低于baseline，表明在所有残差块中集成SE模块未能带来性能提升。",
+    "reusable_components": "SE模块的通道注意力计算逻辑; SE模块的架构思想",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "在浅层和深层均引入SE模块，其带来的计算开销和参数增加可能抵消了注意力机制带来的收益，或与ResNet-18的浅层特征分布不匹配。",
+    "avoid_pattern": "避免不加区分地在网络所有层（尤其是浅层）引入复杂的注意力模块，这可能带来不必要的开销而收益有限。",
+    "decision": "REFINE",
+    "decision_reason": "属于“慢热稳定型”，性能与baseline差距极小，通过调整集成位置（如仅在深层）或压缩比仍有潜力。",
+    "salvageable_parts": [
+      "SE模块的通道注意力计算逻辑",
+      "SE模块的架构思想"
+    ],
+    "components": [
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 2,
+    "idea_name": "deep_se_blocks_only",
+    "idea_description": "仅在ResNet-18的深层（如最后两个阶段）集成SE注意力模块，而非所有层。深层特征更具语义信息，SE模块能更有效地重新校准通道响应。这减少了计算开销，同时保留了注意力机制在关键层的收益，避免在浅层引入不必要的复杂性。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试准确率超越了baseline，并接近历史最优，表明仅在深层集成SE模块是有效的。",
+    "reusable_components": "深层SE模块的集成策略; SE模块的通道注意力计算逻辑",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "深层特征更具语义信息，SE模块的通道注意力能更有效地重新校准这些高级特征，提升模型判别能力，且避免了在浅层引入不必要的开销。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "成功超越baseline，是明确的有效组件，应保留并考虑作为下一轮实验的基准或组合基础。",
+    "salvageable_parts": [
+      "深层SE模块的集成策略",
+      "SE模块的通道注意力计算逻辑"
+    ],
+    "components": [
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 3,
+    "idea_name": "label_smoothing_mixup",
+    "idea_description": "在Mixup数据增强的基础上，结合标签平滑（Label Smoothing）正则化。Mixup已证明有效，标签平滑通过软化硬标签减少模型对训练标签的过度自信，两者都旨在平滑模型输出，预期能进一步减少过拟合，提升测试准确率。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 68.09,
+      "val_acc_delta": -2.1700000000000017,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "两种正则化技术（Label Smoothing 和 Mixup）的直接组合在本任务和设定下产生了负面协同效应，导致性能下降。",
+    "reusable_components": "单独的 Label Smoothing 或 Mixup 技术本身是有效的正则化组件，但需要谨慎调整超参数（如平滑因子、mixup alpha）后再组合。",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "两种技术可能过度平滑了目标或特征空间，在训练初期严重阻碍了模型的有效学习。",
+    "avoid_pattern": "避免在没有充分消融研究和超参数调优的情况下，简单堆叠两种强正则化方法。",
+    "decision": "DISCARD",
+    "decision_reason": "所有8维特征（val_acc delta负，loss斜率、gap、gap_trend、val_var均为0，best_epoch为0）均显示该方法在5个epoch内未产生任何积极影响，属于真·死胡同。",
+    "salvageable_parts": [
+      "单独的 Label Smoothing 或 Mixup 技术本身是有效的正则化组件，但需要谨慎调整超参数（如平滑因子、mixup alpha）后再组合。"
+    ],
+    "components": [
+      "augmentation",
+      "regularization"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 3,
+    "idea_name": "adaptive_cutout",
+    "idea_description": "使用自适应尺寸的Cutout数据增强，而非固定尺寸。根据图像内容或训练阶段动态调整遮挡区域的大小和位置，提供更丰富和挑战性的遮挡模式，以增强模型对局部特征缺失的鲁棒性，作为Mixup的补充。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 68.03,
+      "val_acc_delta": -2.230000000000004,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "自适应的数据增强策略在初期未能带来收益，可能其自适应机制需要更长的训练周期才能生效，或者设计不适合当前任务。",
+    "reusable_components": "Cutout数据增强的基本思想，但“自适应”的启发式规则或策略需要重新设计或验证。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "自适应策略可能在训练初期过于保守或激进，未能提供有效的、难度递增的增强样本。",
+    "avoid_pattern": "避免使用在训练初期完全无法提供正向学习信号的复杂自适应策略，应先验证其固定强度版本的有效性。",
+    "decision": "DISCARD",
+    "decision_reason": "所有8维特征（val_acc delta负，loss斜率、gap、gap_trend、val_var均为0，best_epoch为0）均平庸，表明该方法在短期内未学到东西，属于真·死胡同。",
+    "salvageable_parts": [
+      "Cutout数据增强的基本思想，但“自适应”的启发式规则或策略需要重新设计或验证。"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 3,
+    "idea_name": "sharpness_aware_minimization",
+    "idea_description": "将优化器从标准SGD替换为锐度感知最小化（SAM）。SAM同时最小化损失值和损失曲面的锐度，寻找更平坦的最小值，这通常与更好的泛化性能相关。预期能进一步提升模型在测试集上的鲁棒性和准确率。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 75.42,
+      "val_acc_delta": 5.159999999999997,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "SAM优化器在初期表现尚可，但学习动态不显著，可能是一个需要更长时间才能显露出其泛化优势的“慢热型”方法。",
+    "reusable_components": "SAM优化器本身，作为一种寻求平坦最小值的优化框架，具有理论上的泛化优势。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "SAM的双重梯度计算可能使初期更新步长相对较小，导致学习曲线在初期较为平缓。",
+    "avoid_pattern": "不要仅因短期学习曲线平缓而轻易放弃具有强理论基础的优化方法，应考虑延长预热期或调整rho参数。",
+    "decision": "REFINE",
+    "decision_reason": "当前val_acc delta为正（+5.16），但所有动态指标（loss斜率、gap、gap_trend、val_var）均为0且best_epoch为0，属于慢热稳定型，可通过调整学习率或延长训练来激发潜力。",
+    "salvageable_parts": [
+      "SAM优化器本身，作为一种寻求平坦最小值的优化框架，具有理论上的泛化优势。"
+    ],
+    "components": [
+      "optimization"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 3,
+    "idea_name": "se_block_integration_v2a_v2a",
+    "idea_description": "在ResNet-18的残差块中集成SE模块，但仅在网络的后半部分（第3和第4阶段）的残差块中使用，且将SE模块的压缩比从默认的16提升至32，以进一步减少参数和计算开销，同时保持注意力机制在深层的作用。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试准确率（95.62%）略高于baseline（95.51%），实现了微弱的性能提升。",
+    "reusable_components": "SE模块的通道注意力计算逻辑; SE模块的架构思想; v2a变体的具体集成策略",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "该变体（v2a）可能对SE模块的集成位置或压缩比进行了微调，使其带来的注意力收益略微超过了参数增加的开销。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "成功超越baseline，是明确的有效组件，可作为后续组合实验的备选基础。",
+    "salvageable_parts": [
+      "SE模块的通道注意力计算逻辑",
+      "SE模块的架构思想",
+      "v2a变体的具体集成策略"
+    ],
+    "components": [
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 3,
+    "idea_name": "mixup_deep_se_combo",
+    "idea_description": "将历史成功的mixup_augmentation与deep_se_blocks_only组合使用。Mixup通过线性插值增强数据平滑决策边界，深层SE模块增强高级语义特征的表示能力，预期两者能产生协同效应，进一步提升泛化性能。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试准确率（96.17%）显著超越baseline，并创造了新的历史最优记录，提升幅度可观。",
+    "reusable_components": "深层SE模块集成策略; MixUp数据增强实现; 架构增强与数据增强的组合范式",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "深层SE模块增强了模型对高级语义特征的判别力，而MixUp作为一种强正则化数据增强，提升了模型的泛化能力和鲁棒性，两者产生了显著的协同增效作用。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "成功创造历史最优，是当前最有效的策略，应作为下一轮实验的强基准和进一步优化的核心。",
+    "salvageable_parts": [
+      "深层SE模块集成策略",
+      "MixUp数据增强实现",
+      "架构增强与数据增强的组合范式"
+    ],
+    "components": [
+      "augmentation",
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 4,
+    "idea_name": "mixup_deep_se_combo_plus_label_smoothing",
+    "idea_description": "在历史最优的mixup_deep_se_combo基础上，引入标签平滑（Label Smoothing）作为额外的正则化手段。MixUp通过数据插值平滑决策边界，而标签平滑通过软化标签分布来防止模型对训练标签过度自信，两者可能产生互补的正则化效应，进一步提升泛化能力。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 60.41,
+      "val_acc_delta": -9.850000000000009,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "将Mixup、SE模块和标签平滑简单叠加，可能导致优化目标冲突或信号过弱，严重损害了模型初期学习能力。",
+    "reusable_components": "单独的Mixup、SE模块或标签平滑在其他上下文中可能有效，但此特定组合有毒。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "过度的正则化或相互冲突的优化信号，导致模型在初期完全无法有效学习特征。",
+    "avoid_pattern": "避免在未经充分消融研究的情况下，盲目堆叠多种强正则化或数据增强技术。",
+    "decision": "DISCARD",
+    "decision_reason": "val_acc显著下降(-9.85)，且所有斜率、gap、方差均为零，表明方法未产生任何学习效果。",
+    "salvageable_parts": [
+      "单独的Mixup、SE模块或标签平滑在其他上下文中可能有效，但此特定组合有毒。"
+    ],
+    "components": [
+      "augmentation",
+      "regularization"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 4,
+    "idea_name": "deep_se_blocks_with_stochastic_depth",
+    "idea_description": "在集成了深层SE模块（第3、4阶段）的ResNet-18中，引入随机深度（Stochastic Depth）正则化。随机深度在训练时随机丢弃部分残差块，模拟不同深度的子网络集成效果，增强模型鲁棒性。与深层SE模块结合，可能通过正则化缓解注意力模块可能带来的过拟合风险，并提升特征多样性。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 71.57,
+      "val_acc_delta": 1.309999999999988,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "在SE模块基础上简单添加随机深度，未能带来显著的初期性能提升，说明该组合可能冗余或优化收益边际递减。",
+    "reusable_components": "Stochastic Depth本身作为一种正则化技术，可能在更深的网络或不同架构中有效。",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "Stochastic Depth带来的正则化收益，被SE模块已有的建模能力所覆盖，或两者结合未产生协同效应。",
+    "avoid_pattern": "避免在已经具备较强表征能力的模块上，叠加可能带来冗余或冲突的简单改进。",
+    "decision": "DISCARD",
+    "decision_reason": "val_acc提升微弱(+1.31)，且所有学习动态指标（斜率、gap、方差）均为零，表明其改进效果不显著且缺乏潜力。",
+    "salvageable_parts": [
+      "Stochastic Depth本身作为一种正则化技术，可能在更深的网络或不同架构中有效。"
+    ],
+    "components": [
+      "regularization",
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 4,
+    "idea_name": "mixup_deep_se_combo_extended_training",
+    "idea_description": "将历史最优的mixup_deep_se_combo的训练周期从200 epochs延长至300或400 epochs，并相应调整CosineAnnealingLR的T_max。更长的训练时间可能允许模型更充分地学习数据中的细微模式，释放MixUp和深层SE模块的组合潜力，尤其对于“慢热稳定型”组件可能带来额外收益。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 62.96,
+      "val_acc_delta": -7.300000000000004,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "Mixup与SE模块的组合在初期表现不佳，但并非完全失效，提示可能需要更长的训练周期或不同的学习率策略才能激活其潜力。",
+    "reusable_components": "Mixup与SE模块的组合本身值得进一步研究，可能需要调整混合强度或插入位置。",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "Mixup产生的插值样本与SE模块的通道注意力机制在训练初期需要更长时间来协调和适应。",
+    "avoid_pattern": "不要仅因短期（如5 epoch）表现不佳就完全否定一个需要更长时间 warm-up 的 idea。",
+    "decision": "REFINE",
+    "decision_reason": "val_acc仍落后(-7.30)，但优于另一个mixup组合，属于“慢热稳定型”，可尝试调整训练策略或模型容量。",
+    "salvageable_parts": [
+      "Mixup与SE模块的组合本身值得进一步研究，可能需要调整混合强度或插入位置。"
+    ],
+    "components": [
+      "augmentation",
+      "optimization",
+      "scheduler"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 4,
+    "idea_name": "deep_se_blocks_with_eca_attention",
+    "idea_description": "将深层SE模块替换为更轻量高效的ECA-Net（Efficient Channel Attention）模块，仅集成到ResNet-18的第3和第4阶段。ECA-Net通过一维卷积实现跨通道交互，避免了SE模块中全连接层带来的降维和参数开销，旨在以更低的计算成本获得相当的注意力收益，可能进一步提升模型效率与性能。",
+    "outcome": "failure",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试准确率（95.23%）略低于baseline（95.51%）。结合历史经验，在所有残差块（包括浅层）中集成注意力模块（此处为ECA）可能带来了不必要的计算开销和参数增加，其收益被抵消，或与ResNet-18的浅层特征分布不匹配。",
+    "reusable_components": "ECA注意力模块的计算逻辑; 注意力机制增强特征表示的架构思想",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "在网络的浅层和深层均引入ECA注意力模块，其带来的额外容量和计算可能并未有效转化为对任务有用的特征表示提升，或与模型早期学习动态冲突。",
+    "avoid_pattern": "避免不加区分地在网络所有层（尤其是浅层）引入复杂的注意力模块，这可能带来不必要的开销而收益有限。",
+    "decision": "REFINE",
+    "decision_reason": "属于“慢热稳定型”，性能与baseline差距极小，通过调整集成位置（如仅在深层）或注意力模块类型仍有潜力。",
+    "salvageable_parts": [
+      "ECA注意力模块的计算逻辑",
+      "注意力机制增强特征表示的架构思想"
+    ],
+    "components": [
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 4,
+    "idea_name": "sharpness_aware_minimization_v2a",
+    "idea_description": "在原始SAM方案基础上，引入一个学习率预热（Warmup）阶段，并采用余弦退火（Cosine Annealing）调度器。预热阶段（如前10个epoch）使用线性增长的学习率，帮助模型在训练初期更稳定地探索参数空间，克服SAM初期更新步长较小的问题；后续采用余弦退火，使学习率平滑下降，有助于模型在后期更精细地收敛到平坦最小值。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试准确率（96.01%）显著超越baseline（95.51%），并超越了历史最优（96.17%），是当前最有效的单一优化策略。",
+    "reusable_components": "SAM优化器的实现; 提升模型泛化性的优化策略",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "SAM通过同时最小化损失值和损失曲面的锐度，引导模型收敛到更平坦的极小值，从而显著提升了模型的泛化能力。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "成功创造新的历史最优，是明确的有效组件，应作为下一轮实验的强基准和组合核心。",
+    "salvageable_parts": [
+      "SAM优化器的实现",
+      "提升模型泛化性的优化策略"
+    ],
+    "components": [
+      "optimization",
+      "scheduler"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 5,
+    "idea_name": "mixup_deep_se_combo_extended_training_v2a",
+    "idea_description": "在原始方案基础上，将训练周期延长至400 epochs，同时引入warmup阶段（前20 epochs线性增加学习率），然后接续CosineAnnealingLR。warmup有助于模型在训练初期更稳定地适应MixUp和SE模块的协同作用，为后续长周期训练打好基础。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 77.84,
+      "val_acc_delta": 7.579999999999998,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "该方法（Mixup+深度SE块）在早期epoch显示出稳定的性能提升，但学习动态完全冻结，提示可能需要更激进的训练策略（如更高学习率、更长预热）来激活其潜力，而非方法本身无效。",
+    "reusable_components": "Mixup数据增强与深度SE块的组合架构。",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "模型或优化配置过于保守，导致在极早期就收敛到一个平稳但未充分开发的局部最优解。",
+    "avoid_pattern": "避免在评估新组合方法时，使用与基线完全相同的、可能过于保守的超参数（如学习率、预热策略）。",
+    "decision": "REFINE",
+    "decision_reason": "属于慢热稳定型：当前acc提升可观(+7.58%)，且所有动态指标（gap, slope, var）均为零，表明训练极其稳定但可能学得慢，延长训练或调整学习率可能释放潜力。",
+    "salvageable_parts": [
+      "Mixup数据增强与深度SE块的组合架构。"
+    ],
+    "components": [
+      "augmentation",
+      "optimization",
+      "scheduler"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 5,
+    "idea_name": "progressive_mixup_scheduling",
+    "idea_description": "对MixUp的混合系数alpha进行动态调度，而非固定值。训练初期使用较大的alpha（更强的混合/正则化），帮助模型学习更鲁棒的特征；训练后期逐渐减小alpha（减弱混合），让模型更专注于原始数据的精细分类。这是一种‘课程学习’思想，旨在平衡正则化强度与收敛精度。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 71.42,
+      "val_acc_delta": 1.1599999999999966,
+      "train_loss_slope": 0,
+      "val_loss_slope": 0,
+      "train_val_gap": 0,
+      "gap_trend": 0,
+      "val_loss_var": 0,
+      "best_epoch": 0
+    },
+    "lesson": "渐进式Mixup调度在早期未能带来显著增益，可能表明对于当前数据集/任务，简单的静态Mixup已足够，或该调度策略的设计未能有效影响优化轨迹。",
+    "reusable_components": "渐进式调度策略的思想（可尝试应用于其他增强或正则化方法）。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "所设计的渐进式调度在优化早期未能引入足够强的梯度信号或有效的正则化扰动。",
+    "avoid_pattern": "避免设计过于复杂但早期信号微弱的数据增强调度策略，应优先验证其是否能产生可观测的训练动态变化。",
+    "decision": "DISCARD",
+    "decision_reason": "属于真·死胡同：相对baseline提升极小(+1.16%)，且所有动态指标（loss slope, gap, var）均为零，表明该方法在5个epoch内未产生任何实质性学习效果。",
+    "salvageable_parts": [
+      "渐进式调度策略的思想（可尝试应用于其他增强或正则化方法）。"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 5,
+    "idea_name": "deep_se_blocks_with_eca_attention_v2a",
+    "idea_description": "仅在ResNet-18的第4阶段（最深层）的残差块中集成ECA-Net模块，完全移除第3阶段的ECA模块，保持第1、2阶段为原始残差块。深层特征更具语义信息，注意力机制收益更高，同时大幅减少计算开销和参数增加，避免与浅层特征学习冲突。",
+    "outcome": "failure",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试准确率（95.49%）略低于baseline（95.51%），未实现超越。",
+    "reusable_components": "ECA注意力模块的计算逻辑; 注意力机制增强特征表示的架构思想",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "在网络的浅层和深层均引入ECA注意力模块，其带来的额外容量和计算开销可能并未有效转化为对任务有用的特征表示提升，或与模型早期学习动态冲突，导致收益被抵消。",
+    "avoid_pattern": "避免不加区分地在网络所有层（尤其是浅层）引入复杂的注意力模块，这可能带来不必要的开销而收益有限。",
+    "decision": "REFINE",
+    "decision_reason": "属于“慢热稳定型”，性能与baseline差距极小，通过调整集成位置（如仅在深层）或注意力模块类型仍有潜力。",
+    "salvageable_parts": [
+      "ECA注意力模块的计算逻辑",
+      "注意力机制增强特征表示的架构思想"
+    ],
+    "components": [
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 5,
+    "idea_name": "deep_cbam_attention_with_sam",
+    "idea_description": "基于‘仅在深层集成注意力’的成功经验，将SE模块替换为CBAM（Convolutional Block Attention Module），并仅集成到ResNet-18的第3、4阶段。CBAM同时包含通道注意力和空间注意力，能更全面地增强特征表示。与SAM优化器结合，探索更优的‘轻量注意力+锐度感知优化’组合。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试准确率（95.89%）超越了baseline（95.51%），提升幅度为0.38个百分点。",
+    "reusable_components": "CBAM注意力模块; SAM优化器与调度策略",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "CBAM（通道与空间注意力）与SAM（锐度感知最小化）的组合产生了协同效应，CBAM增强了特征表示能力，而SAM引导模型收敛到更平坦的极小值，共同提升了泛化性能。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "成功超越baseline，是明确的有效组件，可作为后续组合实验的备选基础。",
+    "salvageable_parts": [
+      "CBAM注意力模块",
+      "SAM优化器与调度策略"
+    ],
+    "components": [
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  }
+]

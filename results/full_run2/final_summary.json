@@ -1,0 +1,303 @@
+{
+  "method": "full",
+  "baseline_acc": 95.51,
+  "best_acc": 96.25,
+  "improvement": 0.7399999999999949,
+  "num_rounds": 5,
+  "total_llm_tokens": 174364,
+  "rounds": [
+    {
+      "round": 1,
+      "ideas_count": 6,
+      "best_acc_this_round": 95.59,
+      "best_acc_so_far": 95.59,
+      "idea_budget": {
+        "total": 6,
+        "refine_slots": 0,
+        "new_slots": 6,
+        "refine_targets": []
+      }
+    },
+    {
+      "round": 2,
+      "ideas_count": 6,
+      "best_acc_this_round": 95.67,
+      "best_acc_so_far": 95.67,
+      "idea_budget": {
+        "total": 6,
+        "refine_slots": 3,
+        "new_slots": 3,
+        "refine_targets": [
+          {
+            "idea_name": "label_smoothing_loss",
+            "idea_description": "将交叉熵损失函数替换为带有标签平滑（Label Smoothing）的版本。这通过将硬标签（one-hot）转换为软标签，在训练中引入轻微的噪声，防止模型对训练标签过于自信。这有助于缓解过拟合，并可能提升模型在测试集上的鲁棒性和校准度。",
+            "category": "正则化",
+            "round": 1,
+            "stage": "full",
+            "decision": "REFINE",
+            "decision_reason": "属于慢热稳定型，其正则化效果温和，可能与其他更强的正则化方法（如stochastic_depth）或数据增强结合时能发挥更大潜力。",
+            "failure_type": "no_effect",
+            "mechanism_hypothesis": "标签平滑通过软化目标标签分布来防止模型对训练标签过度自信，但其正则化强度在当前模型和数据上可能不足或与现有优化动态不匹配。",
+            "signals": {},
+            "lesson": "最终测试准确率（95.47%）略低于 baseline（95.51%），未实现超越。训练曲线可能显示其降低了模型对标签的置信度，起到了正则化作用，但效果有限，未能带来显著的泛化提升。",
+            "reusable_components": "标签平滑作为一种损失函数层面的正则化思想",
+            "salvageable_parts": [
+              "标签平滑作为一种损失函数层面的正则化思想"
+            ],
+            "confidence": "high"
+          },
+          {
+            "idea_name": "randaugment_augmentation",
+            "idea_description": "在训练时应用 RandAugment 数据增强策略，替代或补充现有的基础增强（如随机裁剪、水平翻转）。RandAugment 通过自动搜索增强操作的强度和组合，可以生成更多样化的训练样本，提升模型的泛化能力。预期能减少过拟合，提高对未见数据的识别准确率。",
+            "category": "数据增强",
+            "round": 1,
+            "stage": "mini",
+            "decision": "REFINE",
+            "decision_reason": "train_loss下降快（-0.3001）但gap过大（-6.29%）且gap_trend正（+8.03），属于过拟合潜力股，需加强正则化。",
+            "failure_type": "overfitting",
+            "mechanism_hypothesis": "增强强度可能过高或与当前模型容量不匹配，导致模型难以从高度变化的训练数据中学习到稳定的、可泛化的模式。",
+            "signals": {
+              "val_acc": 71.71,
+              "val_acc_delta": 1.4499999999999886,
+              "train_loss_slope": -0.30005012471657616,
+              "val_loss_slope": -0.237534483253956,
+              "train_val_gap": -6.293999999999997,
+              "gap_trend": 8.032,
+              "val_loss_var": 0.11327388172880275,
+              "best_epoch": 5
+            },
+            "lesson": "被淘汰是因为其强大的数据增强在早期导致了过大的训练-验证差距，且该差距在扩大，暗示其正则化强度可能不足或与模型架构不匹配。",
+            "reusable_components": "RandAugment增强策略本身是有效的正则化工具，可与其他方法（如标签平滑）结合使用，或调整其强度（magnitude）和操作数（N）。",
+            "salvageable_parts": [
+              "RandAugment增强策略本身是有效的正则化工具，可与其他方法（如标签平滑）结合使用，或调整其强度（magnitude）和操作数（N）。"
+            ],
+            "confidence": "medium"
+          },
+          {
+            "idea_name": "se_block_integration",
+            "idea_description": "在 ResNet-18 的每个残差块中集成 Squeeze-and-Excitation (SE) 注意力模块。SE 块通过建模通道间的依赖关系，自适应地重新校准通道特征响应。这种轻量级的架构修改能提升模型的特征表示能力，而不会显著增加计算开销。",
+            "category": "架构修改",
+            "round": 1,
+            "stage": "mini",
+            "decision": "REFINE",
+            "decision_reason": "val_acc极高（+12.33）但gap_trend为正（+9.45），属于过拟合潜力股，需结合正则化手段。",
+            "failure_type": "overfitting",
+            "mechanism_hypothesis": "SE模块引入了大量可学习的参数（全连接层），可能增加了模型容量和复杂性，在缺乏足够正则化的情况下容易过拟合。",
+            "signals": {
+              "val_acc": 82.59,
+              "val_acc_delta": 12.329999999999998,
+              "train_loss_slope": -0.26904361627595835,
+              "val_loss_slope": -0.20398526704311384,
+              "train_val_gap": 0.4440000000000026,
+              "gap_trend": 9.446000000000005,
+              "val_loss_var": 0.08856408590676823,
+              "best_epoch": 5
+            },
+            "lesson": "被淘汰是因为其虽然带来了巨大的初始性能提升，但泛化指标（gap_trend）显示过拟合风险在早期已开始累积，长期潜力存疑。",
+            "reusable_components": "SE模块（通道注意力）是有效的架构组件，其思想（显式建模通道间关系）可以集成到其他模块设计中。",
+            "salvageable_parts": [
+              "SE模块（通道注意力）是有效的架构组件，其思想（显式建模通道间关系）可以集成到其他模块设计中。"
+            ],
+            "confidence": "medium"
+          }
+        ]
+      }
+    },
+    {
+      "round": 3,
+      "ideas_count": 6,
+      "best_acc_this_round": 95.47,
+      "best_acc_so_far": 95.67,
+      "idea_budget": {
+        "total": 6,
+        "refine_slots": 2,
+        "new_slots": 4,
+        "refine_targets": [
+          {
+            "idea_name": "label_smoothing_loss_v2a",
+            "idea_description": "在原始方案基础上，将固定的标签平滑因子（epsilon）替换为一个在训练过程中从较高值（如0.2）线性衰减到较低值（如0.05）的动态调度器。早期训练使用更强的平滑以促进泛化，后期训练使用更弱的平滑以促进收敛和最终精度。",
+            "category": "损失函数",
+            "round": 2,
+            "stage": "full",
+            "decision": "REFINE",
+            "decision_reason": "属于慢热稳定型，其温和的正则化特性可能在与更强的结构正则化（如随机深度）或数据增强结合时，能起到协同作用，释放潜力。",
+            "failure_type": "no_effect",
+            "mechanism_hypothesis": "标签平滑通过软化标签分布防止模型过度自信，但其正则化强度可能不足以在当前已得到较好正则化的模型上产生显著增益，或与现有的优化动态不匹配。",
+            "signals": {},
+            "lesson": "最终测试准确率（95.45%）略低于基线（95.51%），未能实现超越。其正则化效果温和，但单独使用在当前模型和数据上提升有限。",
+            "reusable_components": "标签平滑作为一种损失函数层面的正则化思想",
+            "salvageable_parts": [
+              "标签平滑作为一种损失函数层面的正则化思想"
+            ],
+            "confidence": "high"
+          },
+          {
+            "idea_name": "stochastic_depth_plus_label_smoothing",
+            "idea_description": "将Round 1中成功的stochastic_depth与温和的标签平滑正则化组合使用。Stochastic depth提供结构噪声和模型集成效果，标签平滑在损失函数层面防止过度自信，两者从不同角度正则化模型，预期产生协同效应，进一步提升泛化能力。",
+            "category": "正则化",
+            "round": 2,
+            "stage": "mini",
+            "decision": "REFINE",
+            "decision_reason": "gap极小(-0.13)且gap_trend(+10.43)高，但train/val_loss斜率最平缓(-0.2242/-0.1620)，学习效率低，属于慢热稳定型，有抢救价值。",
+            "failure_type": "underperformance",
+            "mechanism_hypothesis": "过强的正则化在训练初期过度平滑了损失景观，使得模型参数更新缓慢，学习效率低下（损失下降斜率最平）。",
+            "signals": {
+              "val_acc": 71.29,
+              "val_acc_delta": 1.0300000000000011,
+              "train_loss_slope": -0.22415554154559483,
+              "val_loss_slope": -0.16198708605766307,
+              "train_val_gap": -0.13400000000000034,
+              "gap_trend": 10.434000000000001,
+              "val_loss_var": 0.0537141255089324,
+              "best_epoch": 5
+            },
+            "lesson": "强正则化组合（随机深度+标签平滑）在初期严重抑制了学习效率，但带来了优秀的泛化特性（极小的train-val gap），需要调整学习策略来释放潜力。",
+            "reusable_components": "随机深度(Stochastic Depth)与标签平滑(Label Smoothing)的正则化组合策略。",
+            "salvageable_parts": [
+              "随机深度(Stochastic Depth)与标签平滑(Label Smoothing)的正则化组合策略。"
+            ],
+            "confidence": "medium"
+          }
+        ]
+      }
+    },
+    {
+      "round": 4,
+      "ideas_count": 6,
+      "best_acc_this_round": 95.55,
+      "best_acc_so_far": 95.67,
+      "idea_budget": {
+        "total": 6,
+        "refine_slots": 2,
+        "new_slots": 4,
+        "refine_targets": [
+          {
+            "idea_name": "se_stochastic_depth_with_adaptive_schedule",
+            "idea_description": "在ResNet-18中集成SE注意力模块和随机深度(Stochastic Depth)，但采用自适应调度策略：训练初期（前50个epoch）使用较低的随机深度丢弃率（如0.1），后期线性增加到较高丢弃率（如0.3）。这基于历史教训中“强正则化组合抑制初期学习”的问题，旨在平衡早期学习效率和后期泛化能力。预期通过渐进式增强正则化强度，让模型先学习基础特征，再通过强正则化提升泛化。",
+            "category": "正则化",
+            "round": 3,
+            "stage": "full",
+            "decision": "REFINE",
+            "decision_reason": "属于慢热稳定型，组件（SE、随机深度）本身已被证明有效（见历史成功），但组合调度未达最优，有通过调整调度策略（如更激进的后期学习率、随机深度丢弃率衰减）释放潜力的空间。",
+            "failure_type": "underperformance",
+            "mechanism_hypothesis": "SE模块增强了特征表示，随机深度提供了结构正则化，但自适应调度可能未能有效平衡两者（例如，早期过强的随机深度抑制了SE模块的学习，或后期调度不当导致过拟合），导致性能未达最优组合效果。",
+            "signals": {},
+            "lesson": "将SE注意力模块、随机深度与自适应调度（可能指随机深度的丢弃率或学习率调度）组合，最终测试准确率（95.47%）与基线（95.51%）相当但略低，未重现历史最优（95.67%）的成功。可能自适应调度未能有效协调SE模块的表示能力与随机深度的正则化强度。",
+            "reusable_components": "SE Block; Stochastic Depth",
+            "salvageable_parts": [
+              "SE Block",
+              "Stochastic Depth"
+            ],
+            "confidence": "high"
+          },
+          {
+            "idea_name": "label_smoothing_loss_v2a_v2a",
+            "idea_description": "在原始动态标签平滑方案基础上，将线性衰减调度器替换为余弦退火调度器，使平滑因子epsilon在训练初期保持较高值的时间更长，在训练后期以更平缓的方式衰减到目标值。这旨在更好地匹配模型的学习动态，在模型最需要正则化的早期和中期提供更持续、更温和的约束，避免过早减弱平滑效果。",
+            "category": "损失函数",
+            "round": 3,
+            "stage": "mini",
+            "decision": "REFINE",
+            "decision_reason": "train_loss下降快（-0.3058），但gap_trend高（+7.61），属于过拟合潜力股，可通过加强正则化抢救。",
+            "failure_type": "overfitting",
+            "mechanism_hypothesis": "标签平滑提供了正则化，但强度不足，模型仍在快速记忆训练集特征。",
+            "signals": {
+              "val_acc": 71.94,
+              "val_acc_delta": 1.6799999999999926,
+              "train_loss_slope": -0.30575300781318326,
+              "val_loss_slope": -0.24138416326046006,
+              "train_val_gap": -1.6239999999999952,
+              "gap_trend": 7.614000000000001,
+              "val_loss_var": 0.11680699489113695,
+              "best_epoch": 5
+            },
+            "lesson": "单纯使用标签平滑可能不足以控制过拟合，需要与其他正则化技术结合。",
+            "reusable_components": "标签平滑的实现和超参数设置。",
+            "salvageable_parts": [
+              "标签平滑的实现和超参数设置。"
+            ],
+            "confidence": "medium"
+          }
+        ]
+      }
+    },
+    {
+      "round": 5,
+      "ideas_count": 6,
+      "best_acc_this_round": 96.25,
+      "best_acc_so_far": 96.25,
+      "idea_budget": {
+        "total": 6,
+        "refine_slots": 3,
+        "new_slots": 3,
+        "refine_targets": [
+          {
+            "idea_name": "resnet18_with_eca_block_and_dropout",
+            "idea_description": "用ECA（Efficient Channel Attention）模块替换SE模块。ECA通过一维卷积实现通道注意力，参数更少且避免了SE中全连接层的维度缩减。同时，在ECA模块后和每个残差块后添加Dropout层（p=0.1）。这旨在获得注意力机制带来的特征表示提升，同时通过更轻量的设计和额外的Dropout来更好地控制过拟合风险。",
+            "category": "正则化",
+            "round": 4,
+            "stage": "full",
+            "decision": "REFINE",
+            "decision_reason": "属于慢热稳定型，组件（ECA、Dropout）本身有效，但组合效果平庸，有通过调整Dropout位置（如仅在ECA后）、比率或结合其他正则化（如Stochastic Depth）来释放潜力的空间。",
+            "failure_type": "underperformance",
+            "mechanism_hypothesis": "ECA模块提供了轻量级通道注意力，但Dropout的引入可能未能有效抑制其潜在的过拟合倾向，或两者组合未产生预期的协同增强效应。",
+            "signals": {},
+            "lesson": "测试准确率仅比基线高0.04个百分点，提升微乎其微，未达到历史最优。ECA注意力模块可能增强了特征表示，但Dropout的正则化强度或位置未能与ECA有效协同，导致潜力未完全释放。",
+            "reusable_components": "ECA Block; Dropout",
+            "salvageable_parts": [
+              "ECA Block",
+              "Dropout"
+            ],
+            "confidence": "high"
+          },
+          {
+            "idea_name": "label_smoothing_loss_v2a_v2b",
+            "idea_description": "在原始动态余弦退火标签平滑方案基础上，引入一个基于训练集准确率的自适应机制。当训练准确率与验证准确率的差距（gap）超过一个动态阈值时，自动增强标签平滑的强度（例如，临时提高epsilon的基值或减缓其衰减速度），以更主动、更直接地对抗过拟合趋势。",
+            "category": "损失函数",
+            "round": 4,
+            "stage": "full",
+            "decision": "REFINE",
+            "decision_reason": "属于慢热稳定型，其正则化效果温和且稳定（train-val gap小），历史经验表明其与强结构正则化（如Stochastic Depth）结合有潜力，可作为组合策略的一部分进行再探索。",
+            "failure_type": "no_effect",
+            "mechanism_hypothesis": "标签平滑通过软化标签分布防止过自信，但其正则化强度在当前模型和数据上相对较弱，未能显著改变优化轨迹或带来额外的泛化收益。",
+            "signals": {},
+            "lesson": "测试准确率仅比基线高0.03个百分点，提升不显著，未达到历史最优。标签平滑作为一种温和的正则化，单独使用或在此版本下强度可能不足，未能有效提升泛化。",
+            "reusable_components": "Label Smoothing Loss",
+            "salvageable_parts": [
+              "Label Smoothing Loss"
+            ],
+            "confidence": "high"
+          },
+          {
+            "idea_name": "progressive_stochastic_depth_with_cutmix",
+            "idea_description": "将随机深度与CutMix数据增强结合，并采用渐进式策略：训练前1/3周期使用较低的随机深度丢弃率（如0.1）和标准数据增强（随机裁剪翻转），中间1/3周期逐步增加丢弃率（至0.3）并引入CutMix（alpha=1.0），后1/3周期保持高丢弃率。这基于历史教训'避免初期强干扰'，让模型先学稳定特征，再通过逐渐增强的结构噪声和空间混合增强提升鲁棒性。",
+            "category": "数据增强",
+            "round": 4,
+            "stage": "mini",
+            "decision": "REFINE",
+            "decision_reason": "train_val_gap极大且gap_trend为负，表明过拟合在加剧，属于“过拟合潜力股”，需通过调整正则化或数据增强来抢救。",
+            "failure_type": "overfitting",
+            "mechanism_hypothesis": "两种强数据增强/正则化方法叠加可能过度破坏了样本的语义一致性，导致模型学习到虚假的局部特征。",
+            "signals": {
+              "val_acc": 65.9,
+              "val_acc_delta": -4.359999999999999,
+              "train_loss_slope": -0.09066221616457196,
+              "val_loss_slope": -0.15396961772441878,
+              "train_val_gap": -19.538189453125007,
+              "gap_trend": -9.004189453125012,
+              "val_loss_var": 0.04879402377678741,
+              "best_epoch": 5
+            },
+            "lesson": "CutMix与渐进式随机深度的组合产生了严重的过拟合，需要更强的正则化或调整组合方式。",
+            "reusable_components": "CutMix数据增强和渐进式随机深度各自作为独立组件。",
+            "salvageable_parts": [
+              "CutMix数据增强和渐进式随机深度各自作为独立组件。"
+            ],
+            "confidence": "medium"
+          }
+        ]
+      }
+    }
+  ],
+  "total_ideas_generated": 30,
+  "total_successful_experiments": 10
+}

@@ -1,0 +1,799 @@
+[
+  {
+    "round": 1,
+    "idea_name": "autoaugment_cifar10",
+    "idea_description": "使用 AutoAugment 策略替代简单的随机裁剪翻转。AutoAugment 通过强化学习搜索出针对 CIFAR-10 最优的数据增强策略组合，能更有效地增加数据多样性并提升模型泛化能力。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 65.65,
+      "val_acc_delta": -4.609999999999999,
+      "train_loss_slope": -0.25866839288140847,
+      "val_loss_slope": -0.1920872766375543,
+      "train_val_gap": -7.818000000000005,
+      "gap_trend": 8.767999999999994,
+      "val_loss_var": 0.0745515569218331,
+      "best_epoch": 5
+    },
+    "lesson": "数据增强策略可能过于激进或与模型不匹配，导致早期严重过拟合，掩盖了其正则化潜力。",
+    "reusable_components": "AutoAugment策略本身，但需调整策略强度或与其他正则化方法组合。",
+    "failure_type": "overfitting",
+    "mechanism_hypothesis": "增强操作过于复杂或强度过高，导致模型在早期专注于学习增强噪声而非通用特征。",
+    "avoid_pattern": "避免在早期训练中使用过于激进或未经校准的数据增强，导致训练与验证分布过早分离。",
+    "decision": "REFINE",
+    "decision_reason": "val_acc落后(-4.61)，但gap(-7.82)过大且gap_trend(+8.77)正增长，显示过拟合潜力，可抢救。",
+    "salvageable_parts": [
+      "AutoAugment策略本身，但需调整策略强度或与其他正则化方法组合。"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 1,
+    "idea_name": "adamw_optimizer",
+    "idea_description": "将优化器从 SGD 替换为 AdamW。AdamW 正确解耦了权重衰减与梯度更新，在图像分类任务上常常能取得比 SGD 更稳定、有时更优的性能，尤其适合配合余弦退火学习率调度。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 66.86,
+      "val_acc_delta": -3.4000000000000057,
+      "train_loss_slope": -0.30780248645016645,
+      "val_loss_slope": -0.20654798310995107,
+      "train_val_gap": 0.1039999999999992,
+      "gap_trend": 12.562000000000001,
+      "val_loss_var": 0.08645336786849615,
+      "best_epoch": 5
+    },
+    "lesson": "优化器切换带来了不稳定性，可能学习率或权重衰减设置不当，但优化轨迹显示有快速学习能力。",
+    "reusable_components": "AdamW优化器框架，但需重新调参。",
+    "failure_type": "optimization_instability",
+    "mechanism_hypothesis": "默认超参（如LR, beta1/beta2, weight decay）与当前架构/数据不匹配，导致损失下降剧烈但不稳定。",
+    "avoid_pattern": "避免不经过充分校准就将新优化器应用于现有管道，尤其是当val_var显著升高时。",
+    "decision": "REFINE",
+    "decision_reason": "val_acc落后(-3.40)，但gap_trend(+12.56)极高且val_var(0.0865)高，显示不稳定但有调整潜力。",
+    "salvageable_parts": [
+      "AdamW优化器框架，但需重新调参。"
+    ],
+    "components": [
+      "optimization"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 1,
+    "idea_name": "mixup_augmentation",
+    "idea_description": "引入 Mixup 数据增强。通过在样本对之间进行线性插值（包括图像和标签），强制模型学习更平滑的决策边界，是提升模型鲁棒性和泛化能力的经典强数据增强方法。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 69.15,
+      "val_acc_delta": -1.1099999999999994,
+      "train_loss_slope": -0.15120269235442688,
+      "val_loss_slope": -0.18558670419454595,
+      "train_val_gap": -17.88288639211583,
+      "gap_trend": -2.527566482388867,
+      "val_loss_var": 0.06926386087290877,
+      "best_epoch": 5
+    },
+    "lesson": "Mixup在此设置下严重损害了早期学习效率，可能完全不适合当前任务或模型容量。",
+    "reusable_components": "无。在此配置下，Mixup核心机制（线性插值）被证明有害。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "Mixup的强正则化在早期严重阻碍了基础特征的学习，导致模型无法有效降低训练损失。",
+    "avoid_pattern": "避免在模型尚未具备基础表征能力时，引入过强的、破坏样本独立同分布假设的正则化。",
+    "decision": "DISCARD",
+    "decision_reason": "val_acc略落后(-1.11)，但gap(-17.88)极大且gap_trend(-2.53)为负，train_loss斜率最平(-0.1512)，学习无效。",
+    "salvageable_parts": [
+      "无。在此配置下，Mixup核心机制（线性插值）被证明有害。"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 1,
+    "idea_name": "se_block_integration",
+    "idea_description": "在 ResNet-18 的每个残差块中集成轻量级的通道注意力模块（Squeeze-and-Excitation Block）。SE Block 能自适应地重新校准通道特征响应，以极小的计算开销提升模型表征能力。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 81.17,
+      "val_acc_delta": 10.909999999999997,
+      "train_loss_slope": -0.26583276132640943,
+      "val_loss_slope": -0.20206107461452505,
+      "train_val_gap": 0.2839999999999918,
+      "gap_trend": 13.219999999999992,
+      "val_loss_var": 0.08235207236301331,
+      "best_epoch": 5
+    },
+    "lesson": "强大的架构修改带来了显著的即时性能提升，但过大的gap_trend是明确的过拟合预警信号，不能直接采用。",
+    "reusable_components": "SE Block模块设计，是有效的表征增强组件。",
+    "failure_type": "overfitting",
+    "mechanism_hypothesis": "引入的额外容量（参数）使模型能够快速拟合训练集，但缺乏足够的约束来保证泛化。",
+    "avoid_pattern": "避免仅因早期精度大幅提升而选择明显有过拟合趋势（高gap_trend）的方法，必须结合正则化。",
+    "decision": "REFINE",
+    "decision_reason": "val_acc领先最多(+10.91)，但gap_trend(+13.22)过高，结合gap(0.28)小看，属过拟合潜力股，值得调整后重点投入。",
+    "salvageable_parts": [
+      "SE Block模块设计，是有效的表征增强组件。"
+    ],
+    "components": [
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 1,
+    "idea_name": "label_smoothing",
+    "idea_description": "在交叉熵损失函数中引入标签平滑（Label Smoothing）。这通过软化硬标签（one-hot）为软标签，防止模型对训练标签过度自信，从而减轻过拟合并可能提升泛化性能。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "以微弱优势（+0.10%）超越baseline，并追平历史最优记录。这表明通过软化标签分布，有效缓解了模型对训练标签的过度自信，带来了轻微的泛化提升。",
+    "reusable_components": "标签平滑系数（epsilon）",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "通过软化one-hot标签，为模型训练引入熵正则化，平滑了决策边界，从而提升了泛化能力。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "实验成功，达到并追平历史最优性能，无需抢救。",
+    "salvageable_parts": [
+      "标签平滑系数（epsilon）"
+    ],
+    "components": [
+      "regularization"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 1,
+    "idea_name": "stochastic_depth",
+    "idea_description": "在 ResNet-18 中引入随机深度（Stochastic Depth）。在训练时以一定概率随机丢弃（跳过）某些残差块，这相当于训练了许多不同深度的子网络集成，是一种有效的正则化方法。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "以微弱优势（+0.03%）超越baseline，但未达到历史最优。这表明随机丢弃部分网络层作为一种隐式集成和正则化手段，对模型有轻微的正向作用，但提升幅度有限。",
+    "reusable_components": "生存概率（survival_probability）调度策略",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "通过在训练中随机跳过部分残差块，引入了网络深度的随机性，起到了类似Dropout的正则化效果和隐式模型集成作用。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "实验成功，小幅超越baseline，无需抢救。",
+    "salvageable_parts": [
+      "生存概率（survival_probability）调度策略"
+    ],
+    "components": [
+      "regularization",
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 2,
+    "idea_name": "adamw_optimizer_v2a",
+    "idea_description": "在原始方案基础上，将学习率降低一个数量级（例如从默认的1e-3降至1e-4），并采用更保守的Warmup策略（如从5个epoch延长至10个epoch），以稳定训练初期剧烈的损失下降，降低方差。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 64.95,
+      "val_acc_delta": -5.310000000000002,
+      "train_loss_slope": -0.32699192713593594,
+      "val_loss_slope": -0.30897938752174414,
+      "train_val_gap": -1.8599999999999994,
+      "gap_trend": -1.5180000000000007,
+      "val_loss_var": 0.23916934072822701,
+      "best_epoch": 5
+    },
+    "lesson": "优化器切换可能导致训练不稳定和早期过拟合，需要更强的正则化配合。",
+    "reusable_components": "AdamW优化器本身（可尝试用于其他架构或配合不同的正则化策略）。",
+    "failure_type": "optimization_instability",
+    "mechanism_hypothesis": "AdamW的适应性学习率在早期可能过于激进，导致在少量epoch内就记忆了训练集特征。",
+    "avoid_pattern": "避免在没有充分正则化（如权重衰减、数据增强）的情况下，单独使用强自适应优化器。",
+    "decision": "REFINE",
+    "decision_reason": "train_loss下降快但val_loss下降慢，gap_trend负但val_var高，表明学习快但不稳定，需加强正则化。",
+    "salvageable_parts": [
+      "AdamW优化器本身（可尝试用于其他架构或配合不同的正则化策略）。"
+    ],
+    "components": [
+      "optimization"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 2,
+    "idea_name": "gradient_clip_sgd",
+    "idea_description": "在SGD优化器中添加梯度裁剪（Gradient Clipping）。历史经验显示AdamW可能不稳定，而梯度裁剪能防止梯度爆炸，稳定训练过程，尤其与CosineAnnealingLR配合时可能避免学习率下降阶段的振荡。这属于优化过程的微调。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 84.67,
+      "val_acc_delta": 14.409999999999997,
+      "train_loss_slope": -0.2724548179856348,
+      "val_loss_slope": -0.29057404088974026,
+      "train_val_gap": 0.2740000000000009,
+      "gap_trend": 7.852000000000004,
+      "val_loss_var": 0.18004707860196068,
+      "best_epoch": 5
+    },
+    "lesson": "梯度裁剪能稳定训练并带来短期acc提升，但可能掩盖或加剧过拟合问题。",
+    "reusable_components": "梯度裁剪技术（可作为训练稳定器与其他方法结合使用）。",
+    "failure_type": "overfitting",
+    "mechanism_hypothesis": "梯度裁剪防止了梯度爆炸，使训练更稳定，但也可能让模型沿着一个狭窄的优化路径快速收敛到训练集的局部最优。",
+    "avoid_pattern": "避免将梯度裁剪作为单一的改进手段，而应将其与数据增强、Dropout等泛化技术联用。",
+    "decision": "REFINE",
+    "decision_reason": "val_acc高但gap_trend为正且较大，表明过拟合风险在增加，需结合正则化手段。",
+    "salvageable_parts": [
+      "梯度裁剪技术（可作为训练稳定器与其他方法结合使用）。"
+    ],
+    "components": [
+      "optimization",
+      "scheduler"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 2,
+    "idea_name": "se_block_stochastic_depth",
+    "idea_description": "在ResNet-18中集成SE（Squeeze-and-Excitation）模块，同时应用已成功的Stochastic Depth。SE模块曾被单独测试但效果不佳（81.17%），可能与过拟合有关。结合Stochastic Depth（随机深度）可以引入额外的正则化，缓解SE模块的参数过拟合，提升特征表示能力。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 60.22,
+      "val_acc_delta": -10.040000000000006,
+      "train_loss_slope": -0.25338557979944726,
+      "val_loss_slope": -0.14018949204683306,
+      "train_val_gap": 3.442,
+      "gap_trend": 13.380000000000003,
+      "val_loss_var": 0.04157119811608667,
+      "best_epoch": 5
+    },
+    "lesson": "将SE模块与随机深度结合可能产生了冲突或削弱了各自的效果，导致模型能力严重下降。",
+    "reusable_components": "无（该特定组合被证明无效）。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "SE模块的通道注意力与随机深度的随机路径丢弃机制可能存在不兼容，干扰了有效梯度的传播。",
+    "avoid_pattern": "避免在没有充分理论或实验依据的情况下，简单叠加两种复杂的模块修改。",
+    "decision": "DISCARD",
+    "decision_reason": "train_loss和val_loss下降都缓慢，gap大且gap_trend正，val_acc低，表明方法无效或设计有根本问题。",
+    "salvageable_parts": [
+      "无（该特定组合被证明无效）。"
+    ],
+    "components": [
+      "regularization",
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 2,
+    "idea_name": "se_block_integration_v2a",
+    "idea_description": "在ResNet-18的每个残差块中集成轻量级SE Block，但在SE模块的全连接层后引入Dropout层（dropout_rate=0.25），以增加正则化约束，抑制过拟合。",
+    "outcome": "failure",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试精度低于baseline，表明在完整训练后，SE Block带来的额外模型容量未能有效转化为泛化性能提升，可能训练过程存在过拟合或优化困难。",
+    "reusable_components": "SE Block模块设计; 通道注意力机制",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "SE Block引入的额外参数和计算可能使模型在CIFAR-10上容量略有过剩，且未配合足够的正则化约束，导致其表征增强潜力未能完全释放或引发了轻微的优化不稳定性。",
+    "avoid_pattern": "避免在小型数据集（如CIFAR-10）上为轻量级模型（如ResNet-18）引入过多额外的参数化注意力模块，而不同步增强正则化。",
+    "decision": "REFINE",
+    "decision_reason": "属于“慢热稳定型”或“过拟合潜力股”，历史经验显示其早期有高潜力（+10.91 val_acc），但gap_trend过高，需通过更强的正则化（如与Stochastic Depth或Label Smoothing组合）来释放其表征能力。",
+    "salvageable_parts": [
+      "SE Block模块设计",
+      "通道注意力机制"
+    ],
+    "components": [
+      "regularization",
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 2,
+    "idea_name": "autoaugment_cifar10_v2a",
+    "idea_description": "在原始方案基础上，引入渐进式策略调度（Progressive Policy Scheduling），训练初期使用较温和的增强（如仅随机裁剪翻转），随着训练进行逐步引入并增强AutoAugment策略的强度，让模型先学习基础特征再适应复杂增强。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试精度超越了baseline和历史最优，表明经过调整的AutoAugment策略能有效提升数据多样性并增强模型泛化能力。",
+    "reusable_components": "AutoAugment策略库; CIFAR-10特定增强策略",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "针对CIFAR-10优化的AutoAugment策略通过增加数据多样性，提供了更强的正则化效果，帮助模型学习更鲁棒的特征，从而提升了测试性能。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "实验成功，达到新的历史最优，无需抢救。",
+    "salvageable_parts": [
+      "AutoAugment策略库",
+      "CIFAR-10特定增强策略"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 3,
+    "idea_name": "adamw_optimizer_v2a_v2a",
+    "idea_description": "在原始方案基础上，将学习率降低一个数量级（例如从默认的1e-3降至1e-4），并采用更保守的Warmup策略（如从5个epoch延长至10个epoch）。同时，显著增加权重衰减系数（例如从0.01提升至0.1），以在训练早期提供更强的正则化约束，对抗AdamW适应性学习率可能导致的早期过拟合。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 66.36,
+      "val_acc_delta": -3.9000000000000057,
+      "train_loss_slope": -0.2012649450917989,
+      "val_loss_slope": -0.15249900096654906,
+      "train_val_gap": 1.0220000000000056,
+      "gap_trend": 8.720000000000006,
+      "val_loss_var": 0.051762047332857865,
+      "best_epoch": 5
+    },
+    "lesson": "简单替换优化器（AdamW）未能带来收益，反而显著降低了学习效率和最终性能。",
+    "reusable_components": "无。此场景下AdamW本身可能不适用。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "优化器与模型/任务不匹配，未能有效驱动参数更新。",
+    "avoid_pattern": "避免在没有充分理由或小规模验证的情况下，直接替换核心训练组件（如优化器）。",
+    "decision": "DISCARD",
+    "decision_reason": "train_loss和val_loss下降斜率均最平缓，表明学习效率低，且val_acc显著低于baseline，属于真·死胡同。",
+    "salvageable_parts": [
+      "无。此场景下AdamW本身可能不适用。"
+    ],
+    "components": [
+      "optimization"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 3,
+    "idea_name": "cutmix_label_smoothing",
+    "idea_description": "将CutMix数据增强与Label Smoothing损失函数组合使用。CutMix通过裁剪和粘贴图像区域进行混合增强，相比历史失败的Mixup可能更适合CIFAR-10；Label Smoothing已证明有效，能提供正则化。预期两者协同能进一步提升模型泛化能力。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 70.39,
+      "val_acc_delta": 0.12999999999999545,
+      "train_loss_slope": -0.18190977542906508,
+      "val_loss_slope": -0.15519013357162476,
+      "train_val_gap": -11.311999999999998,
+      "gap_trend": 4.294000000000004,
+      "val_loss_var": 0.04886144272304422,
+      "best_epoch": 5
+    },
+    "lesson": "CutMix与Label Smoothing的组合在本任务早期导致了灾难性的过拟合和极低的学习效率。",
+    "reusable_components": "可单独测试CutMix或Label Smoothing，但组合方式需要彻底重新设计。",
+    "failure_type": "overfitting",
+    "mechanism_hypothesis": "两种强正则化方法叠加可能过度平滑了目标或破坏了样本有效性，导致模型无法学习有效特征。",
+    "avoid_pattern": "避免在早期实验中盲目叠加多种强正则化技术，应逐一验证其单独效果。",
+    "decision": "DISCARD",
+    "decision_reason": "train_val_gap极大（-11.31%）且gap_trend为正，表明严重过拟合且趋势在恶化，同时学习斜率平缓，属于真·死胡同。",
+    "salvageable_parts": [
+      "可单独测试CutMix或Label Smoothing，但组合方式需要彻底重新设计。"
+    ],
+    "components": [
+      "augmentation",
+      "regularization"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 3,
+    "idea_name": "gradient_clip_label_smoothing",
+    "idea_description": "在SGD优化器中添加梯度裁剪（Gradient Clipping），并与Label Smoothing组合。历史中梯度裁剪单独使用效果不佳（84.67%），但可能与Label Smoothing协同稳定训练；裁剪梯度能防止极端更新，平滑标签提供软目标。预期能提升训练稳定性与泛化。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 85.26,
+      "val_acc_delta": 15.0,
+      "train_loss_slope": -0.20862735668411667,
+      "val_loss_slope": -0.21434730851650258,
+      "train_val_gap": 0.9359999999999928,
+      "gap_trend": 5.689999999999991,
+      "val_loss_var": 0.09935304746084535,
+      "best_epoch": 5
+    },
+    "lesson": "梯度裁剪与标签平滑的组合取得了高精度，但训练不稳定且有过拟合加剧趋势，提示需要调整训练动力学。",
+    "reusable_components": "梯度裁剪和标签平滑这两个组件本身有价值，但需要调整超参数（如裁剪阈值、平滑因子）或训练策略。",
+    "failure_type": "optimization_instability",
+    "mechanism_hypothesis": "组件组合改变了优化轨迹，可能导致梯度更新在稳定性和探索性之间失衡，引起震荡。",
+    "avoid_pattern": "避免满足于高但不稳定的早期结果，必须同时优化稳定性和泛化趋势。",
+    "decision": "REFINE",
+    "decision_reason": "val_acc高但gap_trend为正且val_var较高，属于狂躁巅峰型，有能力但不稳定，有抢救价值。",
+    "salvageable_parts": [
+      "梯度裁剪和标签平滑这两个组件本身有价值，但需要调整超参数（如裁剪阈值、平滑因子）或训练策略。"
+    ],
+    "components": [
+      "regularization",
+      "optimization"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 3,
+    "idea_name": "se_block_integration_v2a_v2a",
+    "idea_description": "在原始方案基础上，将SE模块中的Dropout层替换为更激进的Dropout（dropout_rate=0.5），并在SE模块的两个全连接层之间额外增加一个Dropout层，形成更强的内部正则化约束，以更有效地抑制过拟合，释放模型表征潜力。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试精度（95.64%）以微弱优势超越基线（95.51%），表明在SE Block中引入Dropout的正则化调整起到了一定的正面作用，但提升幅度非常有限。",
+    "reusable_components": "SE Block模块设计; 通道注意力机制; 在注意力模块中引入Dropout的正则化思路",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "SE Block的通道注意力机制配合Dropout的正则化，可能轻微缓解了过拟合，使模型容量得到更有效的利用。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "实验成功，小幅超越基线，无需抢救。",
+    "salvageable_parts": [
+      "SE Block模块设计",
+      "通道注意力机制",
+      "在注意力模块中引入Dropout的正则化思路"
+    ],
+    "components": [
+      "regularization",
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 3,
+    "idea_name": "gradient_clip_sgd_v2a",
+    "idea_description": "在原始方案基础上，为SGD优化器添加权重衰减（Weight Decay）作为显式正则化项，与梯度裁剪协同作用。梯度裁剪稳定训练过程，权重衰减则通过惩罚大权重来缓解过拟合，两者结合旨在实现稳定收敛与泛化能力的平衡。",
+    "outcome": "failure",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试精度（95.48%）略低于基线（95.51%），未能实现有效提升。结合历史经验（gradient_clip_label_smoothing的不稳定表现），梯度裁剪可能对当前已稳定的SGD优化轨迹产生了不必要的干扰。",
+    "reusable_components": "梯度裁剪技术",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "在已收敛良好的SGD优化器上施加梯度裁剪，可能限制了参数在最优解附近的必要探索，或裁剪阈值设置不当，导致性能轻微下降。",
+    "avoid_pattern": "避免在已经稳定且表现良好的优化器（如当前SGD）上，不经过充分验证就引入额外的梯度约束。",
+    "decision": "DISCARD",
+    "decision_reason": "属于“真·死胡同”，性能平庸且略低于基线，结合历史教训，该组件在当前管道中价值有限，应放弃。",
+    "salvageable_parts": [
+      "梯度裁剪技术"
+    ],
+    "components": [
+      "regularization",
+      "optimization",
+      "scheduler"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 4,
+    "idea_name": "autoaugment_stochastic_depth_combination",
+    "idea_description": "将历史实验中验证有效的AutoAugment（强数据增强）与Stochastic Depth（隐式集成正则化）进行组合。AutoAugment能提供更丰富的数据变换，而Stochastic Depth能增强模型鲁棒性，预期两者能产生协同效应，进一步提升泛化能力。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 10.0,
+      "val_acc_delta": -60.260000000000005,
+      "train_loss_slope": NaN,
+      "val_loss_slope": NaN,
+      "train_val_gap": 0.0,
+      "gap_trend": -0.03599999999999959,
+      "val_loss_var": NaN,
+      "best_epoch": 1
+    },
+    "lesson": "两种强正则化方法（AutoAugment 和 Stochastic Depth）的直接组合可能导致训练动力学崩溃，模型无法收敛。",
+    "reusable_components": "AutoAugment 和 Stochastic Depth 本身作为独立的正则化组件是有效的。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "过强的正则化组合（数据增强+结构扰动）在训练初期严重破坏了梯度的有效传播，导致模型无法学习。",
+    "avoid_pattern": "避免在训练初期同时叠加多种强干扰型正则化方法，应从弱到强逐步引入。",
+    "decision": "DISCARD",
+    "decision_reason": "train_loss_slope 和 val_loss_slope 均为 NaN，val_acc 仅 10%，表明训练在第一个 epoch 后可能已崩溃，属于真·死胡同。",
+    "salvageable_parts": [
+      "AutoAugment 和 Stochastic Depth 本身作为独立的正则化组件是有效的。"
+    ],
+    "components": [
+      "augmentation",
+      "regularization",
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 4,
+    "idea_name": "cosine_annealing_with_warmup",
+    "idea_description": "在现有的CosineAnnealingLR学习率调度器前添加线性warmup阶段（如5-10个epoch）。warmup能避免训练初期因学习率过大导致的不稳定，使优化更平滑，尤其在与强正则化组合时可能提升收敛性和最终性能。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 60.09,
+      "val_acc_delta": -10.170000000000002,
+      "train_loss_slope": -0.20478842808767367,
+      "val_loss_slope": -0.11139362049102797,
+      "train_val_gap": 3.4379999999999953,
+      "gap_trend": 11.859999999999992,
+      "val_loss_var": 0.032159294196379064,
+      "best_epoch": 4
+    },
+    "lesson": "单纯优化学习率调度（Cosine Annealing + Warmup）不足以解决模型固有的过拟合倾向，需要搭配更强的数据或模型正则化。",
+    "reusable_components": "Cosine Annealing with Warmup 调度策略本身。",
+    "failure_type": "overfitting",
+    "mechanism_hypothesis": "学习率调度改善了优化过程，但模型容量或数据多样性不足，导致其快速记忆训练集（gap_trend 急剧上升）。",
+    "avoid_pattern": "避免在未评估模型泛化缺口（gap_trend）的情况下，仅依赖优化策略来提升性能。",
+    "decision": "REFINE",
+    "decision_reason": "gap_trend 高达 +11.86，表明过拟合正在快速加剧，属于过拟合潜力股，需要更强的正则化。",
+    "salvageable_parts": [
+      "Cosine Annealing with Warmup 调度策略本身。"
+    ],
+    "components": [
+      "optimization",
+      "scheduler"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 4,
+    "idea_name": "cutout_regularization",
+    "idea_description": "在数据增强流水线中添加Cutout（随机遮挡图像中的方形区域）。Cutout是一种简单有效的正则化方法，能强制模型关注图像的不同部分，减少对局部特征的依赖，与AutoAugment互补，可能进一步提升模型鲁棒性。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 67.1,
+      "val_acc_delta": -3.160000000000011,
+      "train_loss_slope": -0.2279157801662262,
+      "val_loss_slope": -0.1885540541410448,
+      "train_val_gap": -6.033999999999992,
+      "gap_trend": 5.650000000000009,
+      "val_loss_var": 0.07191422526782484,
+      "best_epoch": 5
+    },
+    "lesson": "Cutout 作为一种数据增强，可能过于激进或不适应当前数据集/架构，导致训练不稳定和潜在的验证集过拟合（负gap）。",
+    "reusable_components": "Cutout 数据增强技术，但需要调整其强度（如掩码大小、数量）。",
+    "failure_type": "optimization_instability",
+    "mechanism_hypothesis": "Cutout 的随机遮挡引入了较大的训练噪声，导致损失波动大（高 val_var），并可能使模型学习到与验证集分布不一致的虚假模式。",
+    "avoid_pattern": "避免使用强度过高、导致训练损失和验证损失趋势背离（负gap）且方差激增的数据增强。",
+    "decision": "REFINE",
+    "decision_reason": "train_val_gap 为负（-6.03%），表明验证集损失下降快于训练集，但 gap_trend 为正且 val_var 较高，属于狂躁巅峰型，需要稳定训练。",
+    "salvageable_parts": [
+      "Cutout 数据增强技术，但需要调整其强度（如掩码大小、数量）。"
+    ],
+    "components": [
+      "augmentation",
+      "regularization"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 4,
+    "idea_name": "gradient_clip_label_smoothing_v2a",
+    "idea_description": "在原始方案基础上，引入自适应梯度裁剪（Adaptive Gradient Clipping, AGC），根据权重范数动态调整裁剪阈值，并与标签平滑组合。AGC能更精细地控制不同层级的梯度更新，缓解因粗暴裁剪导致的优化轨迹震荡，同时保持标签平滑的泛化收益。",
+    "outcome": "failure",
+    "stage": "full",
+    "signals": {},
+    "lesson": "测试精度（87.23%）远低于基线（95.51%），性能严重下降。结合历史经验（gradient_clip_sgd_v2a的no_effect和cutmix_label_smoothing的过拟合），梯度裁剪与标签平滑的叠加可能过度约束了模型，导致优化困难或有效特征学习受阻。",
+    "reusable_components": "Label Smoothing损失函数; 梯度裁剪技术",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "梯度裁剪与标签平滑两种正则化方法的不当叠加，可能过度平滑了优化目标并限制了参数更新，破坏了模型的学习动态，导致严重的性能退化。",
+    "avoid_pattern": "避免在小型数据集/轻量级模型上，未经充分验证就盲目叠加多种强正则化技术（尤其是梯度裁剪与标签平滑的组合）。",
+    "decision": "DISCARD",
+    "decision_reason": "属于“真·死胡同”，性能远低于基线且与历史失败模式（组合正则化导致灾难性结果）高度一致，无打磨价值。",
+    "salvageable_parts": [
+      "Label Smoothing损失函数",
+      "梯度裁剪技术"
+    ],
+    "components": [
+      "misc"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 4,
+    "idea_name": "weight_decay_scheduling",
+    "idea_description": "采用权重衰减调度策略，如在训练后期逐步降低weight_decay值。初始较高的权重衰减有助于抑制过拟合，后期降低可避免过度约束模型参数，使其在收敛阶段更精细地调整，可能带来小幅性能提升。",
+    "outcome": "failure",
+    "stage": "full",
+    "signals": {},
+    "lesson": "测试精度（95.28%）略低于基线（95.51%），未实现有效提升。这表明动态调整权重衰减的策略在当前已收敛良好的模型上，未能带来额外的泛化收益，甚至可能轻微干扰了最优解的寻找。",
+    "reusable_components": "权重衰减作为正则化项; 学习率调度策略设计思路",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "在已充分正则化（已有固定权重衰减）且训练稳定的管道中，引入权重衰减调度可能是不必要的复杂化，未能提供比固定正则化更强的约束或更优的收敛轨迹。",
+    "avoid_pattern": "避免在已经表现良好的稳定训练配置中，引入额外的、未经严格理论或经验支持的优化器超参数动态调整。",
+    "decision": "DISCARD",
+    "decision_reason": "属于“真·死胡同”，性能平庸且略低于基线，表明该微调策略在当前上下文下价值有限，应放弃。",
+    "salvageable_parts": [
+      "权重衰减作为正则化项",
+      "学习率调度策略设计思路"
+    ],
+    "components": [
+      "scheduler"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 5,
+    "idea_name": "cosine_annealing_with_warmup_v2a",
+    "idea_description": "在原始方案基础上，将Warmup阶段的学习率增长策略从线性改为余弦式（Cosine Warmup），使学习率从初始值更平滑地过渡到目标值，进一步稳定训练初期，可能有助于缓解因学习率突变导致的早期过拟合倾向。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 62.15,
+      "val_acc_delta": -8.110000000000007,
+      "train_loss_slope": -0.22134297528230337,
+      "val_loss_slope": -0.11681875121593495,
+      "train_val_gap": -2.692,
+      "gap_trend": 10.948,
+      "val_loss_var": 0.030119218397400525,
+      "best_epoch": 5
+    },
+    "lesson": "学习率调度策略（warmup + cosine annealing）在当前设置下未能有效启动和加速模型学习，反而导致早期学习停滞和泛化能力下降。",
+    "reusable_components": "warmup或cosine annealing的单独组件可能在更合适的基线或任务上有效。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "学习率调度策略与模型/优化器的初始状态不匹配，导致早期梯度更新效率低下，模型未能进入有效的学习轨迹。",
+    "avoid_pattern": "避免在早期实验中引入过于复杂或与基线优化器耦合紧密的学习率调度策略，应先验证其必要性。",
+    "decision": "DISCARD",
+    "decision_reason": "train_loss和val_loss下降均缓慢（斜率-0.2213，-0.1168），且gap_trend急剧扩大（+10.95），表明该方法在当前配置下未能有效促进任何方向的学习，属于真·死胡同。",
+    "salvageable_parts": [
+      "warmup或cosine annealing的单独组件可能在更合适的基线或任务上有效。"
+    ],
+    "components": [
+      "optimization",
+      "scheduler"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 5,
+    "idea_name": "se_block_with_label_smoothing",
+    "idea_description": "在ResNet-18中集成SE（Squeeze-and-Excitation）注意力模块，同时配合使用Label Smoothing损失函数。SE模块能增强通道特征表示，但历史实验显示易过拟合；Label Smoothing可软化标签提供正则化约束，两者结合旨在提升模型容量同时控制过拟合风险。",
+    "outcome": "failure",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试精度仅比基线高0.08个百分点，提升微乎其微，未达到有效改进的阈值。结合历史经验（se_block_integration_v2a的失败），表明在ResNet-18上简单添加SE Block并配合标签平滑，其带来的额外容量和注意力机制在当前数据集（CIFAR-10）上未能有效转化为显著的泛化收益。",
+    "reusable_components": "SE Block模块设计; Label Smoothing损失函数",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "SE Block引入的通道注意力机制和额外参数，与标签平滑的软目标正则化叠加，可能未能协同产生更强的表征学习能力，或模型容量已接近当前数据集的饱和点。",
+    "avoid_pattern": "避免在轻量级模型（ResNet-18）和小型数据集（CIFAR-10）上，简单叠加已被单独验证效果有限的模块（SE Block）与温和正则化（Label Smoothing），期望产生显著协同效应。",
+    "decision": "DISCARD",
+    "decision_reason": "属于“真·死胡同”，性能提升微乎其微，结合历史失败模式（SE Block单独使用也失败），表明此组合在当前上下文下潜力耗尽，无进一步打磨价值。",
+    "salvageable_parts": [
+      "SE Block模块设计",
+      "Label Smoothing损失函数"
+    ],
+    "components": [
+      "regularization",
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 5,
+    "idea_name": "cutout_autoaugment_combination",
+    "idea_description": "将Cutout（区域遮挡增强）与AutoAugment组合使用。Cutout通过随机遮挡图像区域迫使模型关注全局特征，AutoAugment提供策略性变换，两者互补可进一步提升数据多样性。历史中Cutout单独使用效果不佳，但与强增强组合可能产生协同。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "最终测试精度超越基线0.84个百分点，并创造了新的历史最优记录（96.35%），提升显著且有效。",
+    "reusable_components": "Cutout数据增强; AutoAugment策略",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "Cutout（随机遮挡）与AutoAugment（自动搜索的数据增强策略）的组合，通过引入多样化且可能互补的输入空间扰动，有效增强了模型对局部特征缺失和全局几何/颜色变换的鲁棒性，从而显著提升了泛化能力。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "实验成功，创造了新的SOTA，无需REFINE或DISCARD，应作为核心组件保留并用于后续实验。",
+    "salvageable_parts": [
+      "Cutout数据增强",
+      "AutoAugment策略"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  }
+]

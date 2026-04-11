@@ -1,0 +1,553 @@
+[
+  {
+    "round": 1,
+    "idea_name": "label_smoothing_crossentropy",
+    "idea_description": "在交叉熵损失函数中引入标签平滑（Label Smoothing）。这通过软化 one-hot 标签来防止模型对训练标签过度自信，作为一种正则化手段，有望提升模型在测试集上的鲁棒性和泛化性能。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 68.21,
+      "val_acc_delta": -2.0500000000000114,
+      "train_loss_slope": -0.31787274213093336,
+      "val_loss_slope": -0.23358638340234775,
+      "train_val_gap": -1.0079999999999956,
+      "gap_trend": 4.178000000000004,
+      "val_loss_var": 0.11220161908867439,
+      "best_epoch": 5
+    },
+    "lesson": "该方法在早期epoch可能抑制了模型的学习速度，导致初始精度落后，但其稳定的泛化特性值得进一步探索。",
+    "reusable_components": "标签平滑作为一种有效的正则化技术，可以与其他方法（如数据增强）结合使用。",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "标签平滑在训练初期可能“软化”了学习目标，降低了模型对训练数据的拟合速度。",
+    "avoid_pattern": "未来避免单独使用标签平滑作为主要改进点，而应将其作为辅助正则化手段。",
+    "decision": "REFINE",
+    "decision_reason": "gap极小且稳定，但当前acc偏低，属于慢热稳定型，可通过调整学习率或延长训练抢救。",
+    "salvageable_parts": [
+      "标签平滑作为一种有效的正则化技术，可以与其他方法（如数据增强）结合使用。"
+    ],
+    "components": [
+      "regularization"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 1,
+    "idea_name": "warmup_cosine_annealing",
+    "idea_description": "在 CosineAnnealingLR 学习率调度器前添加线性学习率预热（Warmup）。在训练初期使用较低的学习率并线性增长到初始值，这有助于稳定训练初期的大梯度更新，使优化过程更平滑，可能带来更好的收敛点。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 71.6,
+      "val_acc_delta": 1.3399999999999892,
+      "train_loss_slope": -0.20848588028069978,
+      "val_loss_slope": -0.15742360445857068,
+      "train_val_gap": 6.382000000000005,
+      "gap_trend": 18.814000000000007,
+      "val_loss_var": 0.12140133036797048,
+      "best_epoch": 4
+    },
+    "lesson": "学习率调度策略本身可能不足以控制复杂模型的过拟合，需要与架构或数据层面的改进结合。",
+    "reusable_components": "Warmup和余弦退火调度策略可以作为训练流程的标准组件。",
+    "failure_type": "overfitting",
+    "mechanism_hypothesis": "学习率策略优化了训练过程，但未引入新的归纳偏置或正则化，导致模型对训练数据过拟合。",
+    "avoid_pattern": "未来避免仅依赖优化策略作为提升模型性能的核心idea，应将其视为训练基础设施。",
+    "decision": "REFINE",
+    "decision_reason": "gap大且gap_trend急剧扩大，属于过拟合潜力股，需加强正则化或数据增强。",
+    "salvageable_parts": [
+      "Warmup和余弦退火调度策略可以作为训练流程的标准组件。"
+    ],
+    "components": [
+      "optimization",
+      "scheduler"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 1,
+    "idea_name": "se_module_resnet18",
+    "idea_description": "在 ResNet-18 的每个残差块末尾添加轻量级的 Squeeze-and-Excitation (SE) 注意力模块。SE 模块通过建模通道间的依赖关系来自适应地重新校准通道特征响应，能有效提升模型表征能力而仅带来少量计算开销。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 80.76,
+      "val_acc_delta": 10.5,
+      "train_loss_slope": -0.26206349164171294,
+      "val_loss_slope": -0.22711471459269544,
+      "train_val_gap": 0.5420000000000016,
+      "gap_trend": 9.612000000000002,
+      "val_loss_var": 0.10631888098065596,
+      "best_epoch": 5
+    },
+    "lesson": "架构增强（如SE模块）能显著提升模型容量和短期表现，但必须配套更强的正则化以防止过拟合。",
+    "reusable_components": "SE（Squeeze-and-Excitation）注意力模块是一个有效的通用架构组件。",
+    "failure_type": "overfitting",
+    "mechanism_hypothesis": "SE模块增加了模型容量和表达能力，但在缺乏相应正则化的情况下，更容易记忆训练数据。",
+    "avoid_pattern": "未来在引入增加模型容量的新模块时，必须同步设计或测试对应的正则化方案（如dropout、更强的数据增强）。",
+    "decision": "REFINE",
+    "decision_reason": "gap_trend为正且较大，属于过拟合潜力股，需结合更强的正则化手段。",
+    "salvageable_parts": [
+      "SE（Squeeze-and-Excitation）注意力模块是一个有效的通用架构组件。"
+    ],
+    "components": [
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 1,
+    "idea_name": "autoaugment_cifar10",
+    "idea_description": "使用 AutoAugment 策略替代简单的随机裁剪翻转。AutoAugment 通过强化学习搜索针对 CIFAR-10 最优的数据增强策略组合，能更有效地增加数据多样性并提升模型泛化能力。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "成功超越了 baseline 和历史最优结果，表明自动搜索的数据增强策略能有效提升模型泛化能力。",
+    "reusable_components": "AutoAugment 策略; 数据增强流水线",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "AutoAugment 通过强化且多样化的数据增强，引入了强大的归纳偏置和正则化，有效抑制了过拟合，提升了模型鲁棒性。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "N/A",
+    "salvageable_parts": [
+      "AutoAugment 策略",
+      "数据增强流水线"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 1,
+    "idea_name": "mixup_augmentation",
+    "idea_description": "实施 Mixup 数据增强。通过线性插值随机两张图像及其标签来生成新的训练样本，这迫使模型学习更线性的行为，是提升模型校准和泛化能力的强有力技术。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "成功超越了 baseline，验证了 mixup 作为一种有效的正则化数据增强方法。",
+    "reusable_components": "Mixup 数据增强算法",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "Mixup 通过在样本和标签层面进行线性插值，鼓励模型在训练样本之间进行线性行为，起到了平滑决策边界和正则化的作用。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "N/A",
+    "salvageable_parts": [
+      "Mixup 数据增强算法"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 2,
+    "idea_name": "warmup_cosine_annealing_v2a",
+    "idea_description": "在原始方案基础上，将余弦退火后的学习率下限从0提升到一个小的正数（如初始学习率的1%），形成带重启的余弦退火（CosineAnnealingWarmRestarts）的变体。这允许学习率在训练后期周期性地小幅回升，帮助模型跳出可能陷入的局部最优解，缓解因训练后期学习率过低导致的过拟合僵化。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 60.92,
+      "val_acc_delta": -9.340000000000003,
+      "train_loss_slope": -0.2336653673282978,
+      "val_loss_slope": -0.1304974503517151,
+      "train_val_gap": 2.4919999999999973,
+      "gap_trend": 13.716000000000001,
+      "val_loss_var": 0.036206287065311024,
+      "best_epoch": 5
+    },
+    "lesson": "学习率调度策略（warmup+cosine）在当前设置下严重损害了模型早期的学习效率和泛化能力，导致快速过拟合。",
+    "reusable_components": "warmup或cosine annealing单独组件可能在更合适的模型或数据集上有效。",
+    "failure_type": "overfitting",
+    "mechanism_hypothesis": "学习率策略可能过早降低了学习动力，导致模型在早期就陷入对训练数据的记忆，而无法学习有效特征。",
+    "avoid_pattern": "避免在模型早期训练阶段使用过于激进或复杂的学习率衰减策略，尤其是在baseline学习效率已经很高的情况下。",
+    "decision": "DISCARD",
+    "decision_reason": "val_acc落后最多，学习效率低，且gap_trend急剧扩大(+13.72)，是典型的早期过拟合信号，没有显示出任何学习潜力。",
+    "salvageable_parts": [
+      "warmup或cosine annealing单独组件可能在更合适的模型或数据集上有效。"
+    ],
+    "components": [
+      "optimization",
+      "scheduler"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 2,
+    "idea_name": "cutout_autoaugment",
+    "idea_description": "在AutoAugment基础上添加Cutout增强。Cutout随机遮挡图像区域，迫使模型学习更鲁棒的特征。与AutoAugment组合形成更强的数据增强流水线，预期进一步提升模型对遮挡和局部特征的鲁棒性。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 65.08,
+      "val_acc_delta": -5.180000000000007,
+      "train_loss_slope": -0.22140523991011615,
+      "val_loss_slope": -0.22853123098611847,
+      "train_val_gap": -12.613999999999997,
+      "gap_trend": -2.453999999999997,
+      "val_loss_var": 0.10475517171551221,
+      "best_epoch": 5
+    },
+    "lesson": "CutOut与AutoAugment的组合虽然当前准确率不高，但展现出了惊人的泛化潜力（验证集优于训练集），说明数据增强策略有效但模型学习动力不足。",
+    "reusable_components": "CutOut和AutoAugment的组合作为强数据增强策略，其泛化提升机制值得保留和研究。",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "过强的数据增强可能增加了训练难度，导致模型在早期epoch学习缓慢，但学到的特征泛化性极强。",
+    "avoid_pattern": "避免仅因早期准确率低而放弃具有优异泛化指标（负gap、负gap_trend）的idea，它们往往是“慢热型”冠军。",
+    "decision": "REFINE",
+    "decision_reason": "尽管val_acc落后，但其泛化指标极其优秀：gap为负(-12.61)且gap_trend为负(-2.45)，表明模型泛化能力在持续增强，是典型的“慢热稳定型”，值得通过调整学习率或模型容量来抢救。",
+    "salvageable_parts": [
+      "CutOut和AutoAugment的组合作为强数据增强策略，其泛化提升机制值得保留和研究。"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 2,
+    "idea_name": "se_module_with_autoaugment",
+    "idea_description": "在ResNet-18中添加SE注意力模块，同时使用AutoAugment作为数据增强策略。SE模块增加模型容量，AutoAugment提供强正则化，形成'强容量+强正则化'组合。预期通过注意力机制提升特征表征能力，同时用强数据增强抑制过拟合。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "在AutoAugment强数据增强的基础上，SE模块提升了模型表征能力，两者结合实现了超越baseline的稳定提升。",
+    "reusable_components": "SE（Squeeze-and-Excitation）注意力模块; AutoAugment数据增强策略",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "SE模块增强了模型对通道特征的注意力，与AutoAugment提供的强正则化形成互补，共同提升了模型的表征能力和泛化能力。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "成功超越baseline，是有效的组合方案。",
+    "salvageable_parts": [
+      "SE（Squeeze-and-Excitation）注意力模块",
+      "AutoAugment数据增强策略"
+    ],
+    "components": [
+      "augmentation",
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 2,
+    "idea_name": "mixup_label_smoothing_combined",
+    "idea_description": "同时使用Mixup数据增强和标签平滑交叉熵损失。Mixup在样本层面进行插值正则化，标签平滑在标签层面软化目标，两者从不同角度提升模型鲁棒性。预期产生协同正则化效应，进一步提升泛化性能。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "Mixup（样本混合）与Label Smoothing（标签平滑）的组合，从数据和标签两个层面施加正则化，创造了新的历史最优结果。",
+    "reusable_components": "Mixup数据增强; Label Smoothing损失函数正则化",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "Mixup通过线性插值创造虚拟样本，平滑了决策边界；Label Smoothing软化标签，降低了模型对硬标签的过度自信。两者协同作用，有效抑制了过拟合。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "创造了新的历史最优结果，是当前最有效的正则化组合策略。",
+    "salvageable_parts": [
+      "Mixup数据增强",
+      "Label Smoothing损失函数正则化"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 3,
+    "idea_name": "cutout_autoaugment_v2a",
+    "idea_description": "在原始方案基础上，引入渐进式增强策略：在训练初期（如前30%的epochs）使用较弱的AutoAugment策略（如降低变换幅度）和较小的Cutout区域，随后逐步增强至原始强度。这旨在降低早期训练难度，帮助模型建立更好的初始表征，同时保留后期强增强带来的泛化优势。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 63.03,
+      "val_acc_delta": -7.230000000000004,
+      "train_loss_slope": -0.20824878813360664,
+      "val_loss_slope": -0.15822833091020594,
+      "train_val_gap": -9.372,
+      "gap_trend": 2.7379999999999995,
+      "val_loss_var": 0.053218413248260696,
+      "best_epoch": 5
+    },
+    "lesson": "单纯叠加数据增强（cutout+autoaugment）可能已饱和或与当前架构不匹配，未能带来增益反而损害了初始学习。",
+    "reusable_components": "autoaugment策略本身（如果其他实验证明有效）。",
+    "failure_type": "underperformance",
+    "mechanism_hypothesis": "数据增强组合过于激进或与模型容量不匹配，过早地破坏了有用的训练信号，导致模型无法有效学习特征。",
+    "avoid_pattern": "避免在没有结构或正则化改进的情况下，盲目叠加强数据增强，尤其是在训练早期。",
+    "decision": "DISCARD",
+    "decision_reason": "val_acc显著落后(-7.23)，train/val_loss斜率最平缓，gap_trend正向扩大(+2.74)，表明方法无效且过拟合加剧。",
+    "salvageable_parts": [
+      "autoaugment策略本身（如果其他实验证明有效）。"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 3,
+    "idea_name": "se_module_with_autoaugment_cutmix",
+    "idea_description": "结合SE模块、AutoAugment和CutMix，形成“强容量+双重强正则化”组合。SE模块提升表征能力，AutoAugment和CutMix从不同角度提供数据增强和正则化，预期能有效控制过拟合并充分利用模型容量。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "成功刷新历史最优结果，超越了baseline。训练曲线应显示其最终收敛稳定，且train-val gap控制得当。",
+    "reusable_components": "SE (Squeeze-and-Excitation) 模块; AutoAugment 策略; CutMix 增强",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "SE模块提升了模型对通道特征的注意力（强容量），而AutoAugment与CutMix的组合提供了极强的数据空间扰动（强正则化），两者互补，在不过拟合的前提下最大化模型表征能力。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "N/A",
+    "salvageable_parts": [
+      "SE (Squeeze-and-Excitation) 模块",
+      "AutoAugment 策略",
+      "CutMix 增强"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 3,
+    "idea_name": "label_smoothing_with_autoaugment",
+    "idea_description": "在AutoAugment强数据增强的基础上，引入Label Smoothing损失函数。AutoAugment增加数据多样性，Label Smoothing软化标签提供额外的正则化，两者结合可能产生协同效应，进一步提升模型校准和泛化性能。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "稳定超越了baseline，但未达到历史最优。训练曲线应显示其训练过程平滑，过拟合迹象弱于未使用Label Smoothing的模型。",
+    "reusable_components": "Label Smoothing 正则化; AutoAugment 策略",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "Label Smoothing作为一种输出层正则化，通过软化标签降低了模型对训练样本的过度自信，与AutoAugment在输入端的正则化形成协同，共同提升了泛化能力。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "N/A",
+    "salvageable_parts": [
+      "Label Smoothing 正则化",
+      "AutoAugment 策略"
+    ],
+    "components": [
+      "augmentation",
+      "regularization"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 4,
+    "idea_name": "cutout_autoaugment_v2a",
+    "idea_description": "在原始方案基础上，引入渐进式增强策略。训练初期使用较弱的AutoAugment策略（如搜索空间减半）和较小的Cutout区域，随着训练进行，逐步增强至原始方案的强度。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 50.11,
+      "val_acc_delta": -20.150000000000006,
+      "train_loss_slope": -0.13579442796804744,
+      "val_loss_slope": -0.13722103440761568,
+      "train_val_gap": -11.286000000000001,
+      "gap_trend": -0.0799999999999983,
+      "val_loss_var": 0.038111202035655524,
+      "best_epoch": 5
+    },
+    "lesson": "数据增强组合可能过于激进或与模型容量不匹配，完全抑制了模型的学习能力，导致训练初期就陷入停滞。",
+    "reusable_components": "cutout和autoaugment单独作为较温和的增强手段，或在更大模型上尝试。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "过强的数据增强破坏了输入数据的可学习结构，导致梯度信号微弱，优化无法进行。",
+    "avoid_pattern": "避免在训练初期就叠加多种强数据增强，尤其是对小模型或训练早期阶段。",
+    "decision": "DISCARD",
+    "decision_reason": "核心失败特征是学习曲线斜率极平（tr_slope: -0.1358, val_slope: -0.1372），表明优化过程基本无效，属于没有学到东西的‘真·死胡同’。",
+    "salvageable_parts": [
+      "cutout和autoaugment单独作为较温和的增强手段，或在更大模型上尝试。"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 4,
+    "idea_name": "resnet34_with_autoaugment_cutmix",
+    "idea_description": "在保持当前最强正则化组合（AutoAugment+CutMix）不变的情况下，将基础模型从ResNet-18扩展到ResNet-34。这直接增加了模型容量和深度。目的是验证在当前强正则化流水线下，更大的模型容量是否能被有效训练并带来进一步的性能提升，同时检验正则化强度的充足性。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "该实验超越了baseline和历史最优结果，达到了96.94%的测试准确率。这表明在ResNet-34（更强的模型容量）上，结合AutoAugment（强正则化）和CutMix（区域混合增强）的策略非常有效。",
+    "reusable_components": "ResNet-34架构; AutoAugment策略; CutMix数据增强",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "更强的模型容量（ResNet-34）与两种互补的强数据增强（AutoAugment和CutMix）协同作用，在提供强大表征能力的同时，通过多样化的数据扰动实现了极强的正则化，从而显著提升了泛化性能。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "N/A",
+    "salvageable_parts": [
+      "ResNet-34架构",
+      "AutoAugment策略",
+      "CutMix数据增强"
+    ],
+    "components": [
+      "augmentation",
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 5,
+    "idea_name": "autoaugment_cutmix_labelsmoothing",
+    "idea_description": "将当前最强的两种数据增强（AutoAugment和CutMix）与有效的标签正则化（Label Smoothing）结合，形成'三重正则化'方案。Label Smoothing能软化目标标签，提供额外的正则化，与数据增强互补。预期通过叠加不同机制的正则化手段，进一步提升模型的泛化性能和鲁棒性。",
+    "outcome": "rejected",
+    "stage": "mini",
+    "signals": {
+      "val_acc": 62.57,
+      "val_acc_delta": -7.690000000000005,
+      "train_loss_slope": -0.1499928086005212,
+      "val_loss_slope": -0.13723718190193201,
+      "train_val_gap": -13.326,
+      "gap_trend": 1.0779999999999959,
+      "val_loss_var": 0.03786821538544065,
+      "best_epoch": 5
+    },
+    "lesson": "过早、过强地组合多种正则化技术（AutoAugment, CutMix, Label Smoothing）可能严重抑制模型在早期阶段的学习动力，导致欠拟合。",
+    "reusable_components": "AutoAugment、CutMix、Label Smoothing作为独立的正则化组件，在模型具备一定学习能力后，可以谨慎地、分阶段引入。",
+    "failure_type": "no_effect",
+    "mechanism_hypothesis": "多种强正则化手段在训练初期叠加，可能过度平滑了损失曲面或干扰了梯度信号，导致模型无法有效更新权重。",
+    "avoid_pattern": "避免在训练初期（如前5-10个epoch）就同时引入多种强数据增强和标签正则化技术。",
+    "decision": "DISCARD",
+    "decision_reason": "结合8维特征：val_acc delta(-7.69)和train_val_gap(-13.33)均为最差；train_loss_slope(-0.1500)和val_loss_slope(-0.1372)下降极慢，表明学习未启动；gap_trend(+1.08)虽为正但基础gap过大，整体属于真·死胡同。",
+    "salvageable_parts": [
+      "AutoAugment、CutMix、Label Smoothing作为独立的正则化组件，在模型具备一定学习能力后，可以谨慎地、分阶段引入。"
+    ],
+    "components": [
+      "augmentation",
+      "regularization"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "mini"
+    },
+    "confidence": "medium"
+  },
+  {
+    "round": 5,
+    "idea_name": "cutout_autoaugment_v2a",
+    "idea_description": "在原始方案基础上，引入渐进式增强策略。训练初期使用较弱的AutoAugment策略和较小的Cutout区域，随着训练进行，逐步增强AutoAugment的强度并增大Cutout遮挡面积，让模型从易到难地学习鲁棒特征。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "在ResNet-18上结合Cutout与AutoAugment两种强数据增强，形成了强大的正则化流水线，有效提升了模型的泛化能力，超越了baseline。",
+    "reusable_components": "Cutout数据增强; AutoAugment数据增强策略; 两者组合的强正则化流水线",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "Cutout（区域遮挡）与AutoAugment（策略增强）在空间和策略层面形成互补，共同提供了极强的数据扰动和正则化，迫使模型学习更鲁棒的特征。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "N/A",
+    "salvageable_parts": [
+      "Cutout数据增强",
+      "AutoAugment数据增强策略",
+      "两者组合的强正则化流水线"
+    ],
+    "components": [
+      "augmentation"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  },
+  {
+    "round": 5,
+    "idea_name": "resnet34_cutout_autoaugment_refined",
+    "idea_description": "基于历史教训，对'cutout_autoaugment'这个具有优异泛化指标但学习动力不足的idea进行抢救。在更大的模型（ResNet-34）上应用CutOut+AutoAugment组合，并可能引入学习率预热（Warmup），以缓解过强数据增强带来的早期训练困难。验证其'慢热稳定型'潜力在更大容量模型上的表现。",
+    "outcome": "success",
+    "stage": "full",
+    "signals": {},
+    "lesson": "在ResNet-34（更强模型容量）上应用Cutout+AutoAugment强正则化组合，并进行了策略微调（refined），实现了接近历史最优的性能。",
+    "reusable_components": "ResNet-34架构; Cutout+AutoAugment组合; 针对此组合的微调策略（refined）",
+    "failure_type": "successful_pattern",
+    "mechanism_hypothesis": "更强的模型容量（ResNet-34）与强正则化（Cutout+AutoAugment）协同，模型在拥有更强表征能力的同时，通过多样化的数据扰动有效抑制了过拟合。",
+    "avoid_pattern": "",
+    "decision": "N/A",
+    "decision_reason": "N/A",
+    "salvageable_parts": [
+      "ResNet-34架构",
+      "Cutout+AutoAugment组合",
+      "针对此组合的微调策略（refined）"
+    ],
+    "components": [
+      "augmentation",
+      "optimization",
+      "architecture"
+    ],
+    "context": {
+      "dataset": "CIFAR-10",
+      "model": "ResNet-18",
+      "stage": "full"
+    },
+    "confidence": "high"
+  }
+]

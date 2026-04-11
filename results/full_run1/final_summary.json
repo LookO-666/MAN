@@ -1,0 +1,238 @@
+{
+  "method": "full",
+  "baseline_acc": 95.51,
+  "best_acc": 96.94,
+  "improvement": 1.4299999999999926,
+  "num_rounds": 5,
+  "total_llm_tokens": 166448,
+  "rounds": [
+    {
+      "round": 1,
+      "ideas_count": 6,
+      "best_acc_this_round": 95.97,
+      "best_acc_so_far": 95.97,
+      "idea_budget": {
+        "total": 6,
+        "refine_slots": 0,
+        "new_slots": 6,
+        "refine_targets": []
+      }
+    },
+    {
+      "round": 2,
+      "ideas_count": 6,
+      "best_acc_this_round": 96.14,
+      "best_acc_so_far": 96.14,
+      "idea_budget": {
+        "total": 6,
+        "refine_slots": 3,
+        "new_slots": 3,
+        "refine_targets": [
+          {
+            "idea_name": "label_smoothing_crossentropy",
+            "idea_description": "在交叉熵损失函数中引入标签平滑（Label Smoothing）。这通过软化 one-hot 标签来防止模型对训练标签过度自信，作为一种正则化手段，有望提升模型在测试集上的鲁棒性和泛化性能。",
+            "category": "正则化",
+            "round": 1,
+            "stage": "mini",
+            "decision": "REFINE",
+            "decision_reason": "gap极小且稳定，但当前acc偏低，属于慢热稳定型，可通过调整学习率或延长训练抢救。",
+            "failure_type": "underperformance",
+            "mechanism_hypothesis": "标签平滑在训练初期可能“软化”了学习目标，降低了模型对训练数据的拟合速度。",
+            "signals": {
+              "val_acc": 68.21,
+              "val_acc_delta": -2.0500000000000114,
+              "train_loss_slope": -0.31787274213093336,
+              "val_loss_slope": -0.23358638340234775,
+              "train_val_gap": -1.0079999999999956,
+              "gap_trend": 4.178000000000004,
+              "val_loss_var": 0.11220161908867439,
+              "best_epoch": 5
+            },
+            "lesson": "该方法在早期epoch可能抑制了模型的学习速度，导致初始精度落后，但其稳定的泛化特性值得进一步探索。",
+            "reusable_components": "标签平滑作为一种有效的正则化技术，可以与其他方法（如数据增强）结合使用。",
+            "salvageable_parts": [
+              "标签平滑作为一种有效的正则化技术，可以与其他方法（如数据增强）结合使用。"
+            ],
+            "confidence": "medium"
+          },
+          {
+            "idea_name": "warmup_cosine_annealing",
+            "idea_description": "在 CosineAnnealingLR 学习率调度器前添加线性学习率预热（Warmup）。在训练初期使用较低的学习率并线性增长到初始值，这有助于稳定训练初期的大梯度更新，使优化过程更平滑，可能带来更好的收敛点。",
+            "category": "学习率策略",
+            "round": 1,
+            "stage": "mini",
+            "decision": "REFINE",
+            "decision_reason": "gap大且gap_trend急剧扩大，属于过拟合潜力股，需加强正则化或数据增强。",
+            "failure_type": "overfitting",
+            "mechanism_hypothesis": "学习率策略优化了训练过程，但未引入新的归纳偏置或正则化，导致模型对训练数据过拟合。",
+            "signals": {
+              "val_acc": 71.6,
+              "val_acc_delta": 1.3399999999999892,
+              "train_loss_slope": -0.20848588028069978,
+              "val_loss_slope": -0.15742360445857068,
+              "train_val_gap": 6.382000000000005,
+              "gap_trend": 18.814000000000007,
+              "val_loss_var": 0.12140133036797048,
+              "best_epoch": 4
+            },
+            "lesson": "学习率调度策略本身可能不足以控制复杂模型的过拟合，需要与架构或数据层面的改进结合。",
+            "reusable_components": "Warmup和余弦退火调度策略可以作为训练流程的标准组件。",
+            "salvageable_parts": [
+              "Warmup和余弦退火调度策略可以作为训练流程的标准组件。"
+            ],
+            "confidence": "medium"
+          },
+          {
+            "idea_name": "se_module_resnet18",
+            "idea_description": "在 ResNet-18 的每个残差块末尾添加轻量级的 Squeeze-and-Excitation (SE) 注意力模块。SE 模块通过建模通道间的依赖关系来自适应地重新校准通道特征响应，能有效提升模型表征能力而仅带来少量计算开销。",
+            "category": "架构修改",
+            "round": 1,
+            "stage": "mini",
+            "decision": "REFINE",
+            "decision_reason": "gap_trend为正且较大，属于过拟合潜力股，需结合更强的正则化手段。",
+            "failure_type": "overfitting",
+            "mechanism_hypothesis": "SE模块增加了模型容量和表达能力，但在缺乏相应正则化的情况下，更容易记忆训练数据。",
+            "signals": {
+              "val_acc": 80.76,
+              "val_acc_delta": 10.5,
+              "train_loss_slope": -0.26206349164171294,
+              "val_loss_slope": -0.22711471459269544,
+              "train_val_gap": 0.5420000000000016,
+              "gap_trend": 9.612000000000002,
+              "val_loss_var": 0.10631888098065596,
+              "best_epoch": 5
+            },
+            "lesson": "架构增强（如SE模块）能显著提升模型容量和短期表现，但必须配套更强的正则化以防止过拟合。",
+            "reusable_components": "SE（Squeeze-and-Excitation）注意力模块是一个有效的通用架构组件。",
+            "salvageable_parts": [
+              "SE（Squeeze-and-Excitation）注意力模块是一个有效的通用架构组件。"
+            ],
+            "confidence": "medium"
+          }
+        ]
+      }
+    },
+    {
+      "round": 3,
+      "ideas_count": 6,
+      "best_acc_this_round": 96.3,
+      "best_acc_so_far": 96.3,
+      "idea_budget": {
+        "total": 6,
+        "refine_slots": 1,
+        "new_slots": 5,
+        "refine_targets": [
+          {
+            "idea_name": "cutout_autoaugment",
+            "idea_description": "在AutoAugment基础上添加Cutout增强。Cutout随机遮挡图像区域，迫使模型学习更鲁棒的特征。与AutoAugment组合形成更强的数据增强流水线，预期进一步提升模型对遮挡和局部特征的鲁棒性。",
+            "category": "数据增强",
+            "round": 2,
+            "stage": "mini",
+            "decision": "REFINE",
+            "decision_reason": "尽管val_acc落后，但其泛化指标极其优秀：gap为负(-12.61)且gap_trend为负(-2.45)，表明模型泛化能力在持续增强，是典型的“慢热稳定型”，值得通过调整学习率或模型容量来抢救。",
+            "failure_type": "underperformance",
+            "mechanism_hypothesis": "过强的数据增强可能增加了训练难度，导致模型在早期epoch学习缓慢，但学到的特征泛化性极强。",
+            "signals": {
+              "val_acc": 65.08,
+              "val_acc_delta": -5.180000000000007,
+              "train_loss_slope": -0.22140523991011615,
+              "val_loss_slope": -0.22853123098611847,
+              "train_val_gap": -12.613999999999997,
+              "gap_trend": -2.453999999999997,
+              "val_loss_var": 0.10475517171551221,
+              "best_epoch": 5
+            },
+            "lesson": "CutOut与AutoAugment的组合虽然当前准确率不高，但展现出了惊人的泛化潜力（验证集优于训练集），说明数据增强策略有效但模型学习动力不足。",
+            "reusable_components": "CutOut和AutoAugment的组合作为强数据增强策略，其泛化提升机制值得保留和研究。",
+            "salvageable_parts": [
+              "CutOut和AutoAugment的组合作为强数据增强策略，其泛化提升机制值得保留和研究。"
+            ],
+            "confidence": "medium"
+          }
+        ]
+      }
+    },
+    {
+      "round": 4,
+      "ideas_count": 6,
+      "best_acc_this_round": 96.94,
+      "best_acc_so_far": 96.94,
+      "idea_budget": {
+        "total": 6,
+        "refine_slots": 1,
+        "new_slots": 5,
+        "refine_targets": [
+          {
+            "idea_name": "cutout_autoaugment",
+            "idea_description": "在AutoAugment基础上添加Cutout增强。Cutout随机遮挡图像区域，迫使模型学习更鲁棒的特征。与AutoAugment组合形成更强的数据增强流水线，预期进一步提升模型对遮挡和局部特征的鲁棒性。",
+            "category": "数据增强",
+            "round": 2,
+            "stage": "mini",
+            "decision": "REFINE",
+            "decision_reason": "尽管val_acc落后，但其泛化指标极其优秀：gap为负(-12.61)且gap_trend为负(-2.45)，表明模型泛化能力在持续增强，是典型的“慢热稳定型”，值得通过调整学习率或模型容量来抢救。",
+            "failure_type": "underperformance",
+            "mechanism_hypothesis": "过强的数据增强可能增加了训练难度，导致模型在早期epoch学习缓慢，但学到的特征泛化性极强。",
+            "signals": {
+              "val_acc": 65.08,
+              "val_acc_delta": -5.180000000000007,
+              "train_loss_slope": -0.22140523991011615,
+              "val_loss_slope": -0.22853123098611847,
+              "train_val_gap": -12.613999999999997,
+              "gap_trend": -2.453999999999997,
+              "val_loss_var": 0.10475517171551221,
+              "best_epoch": 5
+            },
+            "lesson": "CutOut与AutoAugment的组合虽然当前准确率不高，但展现出了惊人的泛化潜力（验证集优于训练集），说明数据增强策略有效但模型学习动力不足。",
+            "reusable_components": "CutOut和AutoAugment的组合作为强数据增强策略，其泛化提升机制值得保留和研究。",
+            "salvageable_parts": [
+              "CutOut和AutoAugment的组合作为强数据增强策略，其泛化提升机制值得保留和研究。"
+            ],
+            "confidence": "medium"
+          }
+        ]
+      }
+    },
+    {
+      "round": 5,
+      "ideas_count": 6,
+      "best_acc_this_round": 96.85,
+      "best_acc_so_far": 96.94,
+      "idea_budget": {
+        "total": 6,
+        "refine_slots": 1,
+        "new_slots": 5,
+        "refine_targets": [
+          {
+            "idea_name": "cutout_autoaugment",
+            "idea_description": "在AutoAugment基础上添加Cutout增强。Cutout随机遮挡图像区域，迫使模型学习更鲁棒的特征。与AutoAugment组合形成更强的数据增强流水线，预期进一步提升模型对遮挡和局部特征的鲁棒性。",
+            "category": "数据增强",
+            "round": 2,
+            "stage": "mini",
+            "decision": "REFINE",
+            "decision_reason": "尽管val_acc落后，但其泛化指标极其优秀：gap为负(-12.61)且gap_trend为负(-2.45)，表明模型泛化能力在持续增强，是典型的“慢热稳定型”，值得通过调整学习率或模型容量来抢救。",
+            "failure_type": "underperformance",
+            "mechanism_hypothesis": "过强的数据增强可能增加了训练难度，导致模型在早期epoch学习缓慢，但学到的特征泛化性极强。",
+            "signals": {
+              "val_acc": 65.08,
+              "val_acc_delta": -5.180000000000007,
+              "train_loss_slope": -0.22140523991011615,
+              "val_loss_slope": -0.22853123098611847,
+              "train_val_gap": -12.613999999999997,
+              "gap_trend": -2.453999999999997,
+              "val_loss_var": 0.10475517171551221,
+              "best_epoch": 5
+            },
+            "lesson": "CutOut与AutoAugment的组合虽然当前准确率不高，但展现出了惊人的泛化潜力（验证集优于训练集），说明数据增强策略有效但模型学习动力不足。",
+            "reusable_components": "CutOut和AutoAugment的组合作为强数据增强策略，其泛化提升机制值得保留和研究。",
+            "salvageable_parts": [
+              "CutOut和AutoAugment的组合作为强数据增强策略，其泛化提升机制值得保留和研究。"
+            ],
+            "confidence": "medium"
+          }
+        ]
+      }
+    }
+  ],
+  "total_ideas_generated": 30,
+  "total_successful_experiments": 9
+}

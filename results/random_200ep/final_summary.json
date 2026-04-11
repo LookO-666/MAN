@@ -1,0 +1,72 @@
+{
+  "method": "random",
+  "baseline_acc": 95.51,
+  "best_acc": 95.52,
+  "improvement": 0.009999999999990905,
+  "num_rounds": 5,
+  "total_llm_tokens": 0,
+  "rounds": [
+    {
+      "round": 1,
+      "ideas_count": 1,
+      "best_acc_this_round": 95.5,
+      "best_acc_so_far": 95.51,
+      "idea_budget": {
+        "total": 1,
+        "refine_slots": 0,
+        "new_slots": 1,
+        "refine_targets": []
+      }
+    },
+    {
+      "round": 2,
+      "ideas_count": 1,
+      "best_acc_this_round": 95.52,
+      "best_acc_so_far": 95.52,
+      "idea_budget": {
+        "total": 1,
+        "refine_slots": 0,
+        "new_slots": 1,
+        "refine_targets": []
+      }
+    },
+    {
+      "round": 3,
+      "ideas_count": 1,
+      "best_acc_this_round": 95.25,
+      "best_acc_so_far": 95.52,
+      "idea_budget": {
+        "total": 1,
+        "refine_slots": 0,
+        "new_slots": 1,
+        "refine_targets": []
+      }
+    },
+    {
+      "round": 4,
+      "ideas_count": 1,
+      "best_acc_this_round": 95.25,
+      "best_acc_so_far": 95.52,
+      "idea_budget": {
+        "total": 1,
+        "refine_slots": 0,
+        "new_slots": 1,
+        "refine_targets": []
+      }
+    },
+    {
+      "round": 5,
+      "ideas_count": 1,
+      "best_acc_this_round": 95.5,
+      "best_acc_so_far": 95.52,
+      "idea_budget": {
+        "total": 1,
+        "refine_slots": 0,
+        "new_slots": 1,
+        "refine_targets": []
+      }
+    }
+  ],
+  "total_ideas_generated": 5,
+  "total_successful_experiments": 5
+}

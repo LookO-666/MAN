@@ -1,115 +1,166 @@
-# MAN: Closed-Loop LLM-Guided CIFAR-10 Research on PyTorch
+# MAN: LLM-Driven Closed-Loop Neural Architecture Improvement
 
-This repository extends the original CIFAR-10 training codebase with a closed-loop experimentation framework for model improvement research. It adds automated idea generation, experiment execution, result analysis, and iterative refinement across multiple research strategies.
+MAN (Model Augmentation Network) is a closed-loop AI research system that uses LLM-guided iterative experimentation to automatically improve deep learning models. Starting from a ResNet-18 baseline on CIFAR-10 (95.51% test accuracy), the system generates improvement ideas, implements them as code, runs experiments, analyzes results, and feeds lessons back into the next round — all without human intervention.
 
-## Project Overview
+## Key Features
 
-The codebase contains two main parts:
-
-- Original PyTorch CIFAR-10 training pipeline based on ResNet and related architectures
-- A `closed_loop/` framework for running iterative AI-guided research experiments
-
-The closed-loop system supports:
-
-- Full closed-loop search with mini-experiment screening and feedback
-- Ablation variants such as `no_memory`, `no_mini_exp`, `no_llm_analysis`, `linear`, and `no_feedback`
-- Baselines such as `random`, `openloop`, and `single_shot` / zero-shot style search
+- **Closed-Loop Iteration**: Multi-round research cycle — idea generation → code implementation → mini-experiment screening → full training → result analysis → memory update
+- **Structured Early Feedback (SEF)**: 8-dimensional signal extraction from 5-epoch mini-experiments to predict long-term potential before committing to full 200-epoch training
+- **Component-level Failure Memory (CFM)**: Structured experience memory that stores failure types, mechanism hypotheses, avoid patterns, and salvageable components — not just flat text logs
+- **REFINE / DISCARD Triage**: A 4-quadrant rescue framework that decides whether a failed idea should be refined (overfitting potential, slow-starter, unstable peak) or discarded (dead end)
+- **Exploration-Exploitation Budgeting**: Dynamically allocates idea slots between new exploration and refinement of promising prior ideas
+- **Multiple Ablation Variants**: Supports systematic ablation studies for paper-ready comparisons
 
 ## Repository Structure
 
-```text
+```
 .
-├── main.py                      # Original CIFAR-10 training entry
-├── models/                      # Backbone model definitions
-├── utils.py                     # Training utilities
-├── run_baselines.py             # Baseline experiment runner
-├── results/                     # Baseline and comparison results
-└── closed_loop/
-    ├── loop.py                  # Main closed-loop research driver
-    ├── runner.py                # Experiment execution wrapper
-    ├── llm_client.py            # LLM API interaction
-    ├── prompts.py               # Prompt templates
-    ├── signal_extractor.py      # Early-signal extraction for screening
-    ├── experience_memory.py     # Failure/experience memory
-    ├── config.py                # Global experiment config
-    └── experiments/             # Outputs from iterative experiments
+├── main.py                          # CIFAR-10 training entry (ResNet-18 baseline)
+├── models/                          # Backbone definitions (ResNet, VGG, DenseNet, etc.)
+├── utils.py                         # Training utilities (progress bar, init)
+├── run_baselines.py                 # Baseline runners: random / zeroshot / openloop
+├── results/                         # Saved baseline & comparison results
+│   ├── baseline_200ep/              #   ResNet-18 200-epoch baseline (95.51%)
+│   ├── random/                      #   Random hyperparameter search
+│   ├── zeroshot/                    #   Single-shot LLM modification
+│   └── openloop/                    #   Multi-iteration LLM without feedback
+│
+└── closed_loop/                     # Core closed-loop system
+    ├── loop.py                      #   Main research loop driver
+    ├── runner.py                    #   Experiment execution & sandboxing
+    ├── llm_client.py                #   DeepSeek API client with retry & token tracking
+    ├── prompts.py                   #   All LLM prompt templates
+    ├── signal_extractor.py          #   8-dim early signal extraction (SEF)
+    ├── experience_memory.py         #   Structured failure memory (CFM)
+    ├── config.py                    #   Global experiment configuration
+    ├── run_experiments.py           #   Unified experiment orchestrator
+    ├── run_all_paper_experiments.sh #   Full system batch runner
+    ├── run_gpu2.sh                  #   Baselines batch (random, single-turn, zero-memory)
+    └── run_gpu3.sh                  #   Ablation batch (no-SEF, no-CFM)
 ```
 
 ## Installation
 
-Recommended environment:
-
-- Python 3.8+
-- PyTorch compatible with your CUDA environment
-
-Install dependencies manually if needed:
+**Requirements**: Python 3.8+, PyTorch (with CUDA), OpenAI-compatible API access
 
 ```bash
-pip install torch torchvision tqdm requests
+pip install torch torchvision tqdm openai numpy
 ```
 
-## Original CIFAR-10 Training
+## Quick Start
 
-Train the baseline model:
+### 1. Train the Baseline
 
 ```bash
-python main.py
+python main.py --epoch 200
 ```
 
-Resume training:
+This trains ResNet-18 on CIFAR-10 for 200 epochs and saves results to `results.json`.
 
-```bash
-python main.py --resume --lr 0.01
-```
-
-## Closed-Loop Research Workflow
-
-Main entry:
+### 2. Run the Full Closed-Loop System
 
 ```bash
 cd closed_loop
-python loop.py
+python loop.py --method full --num_rounds 5
 ```
 
-Run a specific method variant:
+### 3. Run Baselines for Comparison
 
 ```bash
-python loop.py --method full
-python loop.py --method no_memory
-python loop.py --method no_mini_exp
-python loop.py --method linear
-python loop.py --method random
-python loop.py --method single_shot
+# Random hyperparameter search
+python run_baselines.py --strategy random
+
+# Single-shot LLM modification (no feedback)
+python run_baselines.py --strategy zeroshot
+
+# Multi-iteration LLM without feedback loop
+python run_baselines.py --strategy openloop
 ```
+
+### 4. Run Paper Experiments (Unified Orchestrator)
+
+```bash
+cd closed_loop
+
+# Full system with 3 independent runs
+python run_experiments.py --mode full_system --runs 3 --rounds 5
+
+# Ablation: disable Structured Early Feedback
+python run_experiments.py --mode full_system --disable_sef --runs 1 --rounds 5
+
+# Ablation: disable Component-level Failure Memory
+python run_experiments.py --mode full_system --disable_cfm --runs 1 --rounds 5
+
+# Baselines
+python run_experiments.py --mode random_search --runs 1 --rounds 5
+python run_experiments.py --mode single_turn --runs 3
+python run_experiments.py --mode zero_memory --runs 1 --rounds 5
+```
+
+## Method Variants
+
+| Method | Description |
+|--------|-------------|
+| `full` | Complete system: SEF screening + CFM memory + LLM analysis + refinement |
+| `no_memory` | Disable experience memory — each round starts from scratch |
+| `no_mini_exp` | Skip mini-experiment screening — LLM picks survivors by judgment alone |
+| `no_llm_analysis` | Skip LLM analysis — rank by val_acc only (degrades to Hyperband-style) |
+| `no_feedback` | Each round independent — no history in prompts |
+| `linear` | 1 idea per round, run full experiment directly (simulates AI Scientist) |
+| `random` | Random hyperparameter search, no LLM |
+| `single_shot` | LLM gives one plan, run once, done |
+
+## Ablation Switches
+
+| Flag | Effect |
+|------|--------|
+| `--disable_sef` | Degrade early signal extraction to simple val_acc only (no 8-dim features) |
+| `--disable_cfm` | Degrade memory to flat (idea, accuracy) pairs — no constraints, no mechanism hypotheses |
 
 ## Configuration
 
-Core configuration is defined in `closed_loop/config.py`.
+Core settings are in `closed_loop/config.py`:
 
-Important options include:
+- `num_rounds`: Number of research iterations (default: 5)
+- `num_candidates`: Ideas generated per round (default: 6)
+- `num_survivors`: Ideas promoted to full training (default: 2)
+- `mini_epochs` / `full_epochs`: 5 / 200
+- `model`: LLM model name (default: `deepseek-chat`)
+- `method`: Experiment variant
 
-- Number of rounds
-- Number of candidates per round
-- Number of survivors
-- Mini/full experiment epochs
-- LLM API endpoint and model name
-- Method variant
+LLM API settings can be overridden via environment variables (`DEEPSEEK_API_KEY`) or CLI arguments.
 
-## Result Summaries
+## How It Works
 
-Current recorded summaries in this repository include:
-
-- `results/zeroshot/summary.json`: best test accuracy `82.66`
-- `results/openloop/summary.json`: best test accuracy `82.85`
-- `results/random/summary.json`: best test accuracy `83.59`
-- `closed_loop/experiments/full/final_summary.json`: baseline `95.51`, best `95.51`, improvement `0.0`
-
-## Notes
-
-- Dataset files, checkpoints, and `.pth` weights are excluded via `.gitignore`
-- Some experiment directories use linked `data` paths
-- The repository currently contains experiment outputs and logs for multiple rounds and ablation settings
+```
+Round N:
+  ┌─────────────────────────────────────────────────────┐
+  │ 1. Idea Generation (LLM + memory constraints)       │
+  │    → 6 candidate ideas (mix of new + refined)       │
+  │                                                     │
+  │ 2. Code Implementation (LLM)                        │
+  │    → Complete training scripts for each idea         │
+  │                                                     │
+  │ 3. Mini-Experiment Screening (5 epochs + SEF)       │
+  │    → 8-dim signal extraction per candidate           │
+  │    → LLM-based triage: SELECT / REJECT              │
+  │    → REFINE or DISCARD rejected ideas                │
+  │    → Top 2 survivors advance                         │
+  │                                                     │
+  │ 4. Full Training (200 epochs)                        │
+  │    → Run survivors with full budget                  │
+  │                                                     │
+  │ 5. Result Analysis (LLM)                             │
+  │    → Lessons learned, failure types, mechanism hyp.  │
+  │    → Update experience memory (CFM)                  │
+  │    → Suggestions for Round N+1                       │
+  └─────────────────────────────────────────────────────┘
+```
 
 ## Acknowledgement
 
-This project is built on top of the original [`kuangliu/pytorch-cifar`](https://github.com/kuangliu/pytorch-cifar) repository and extends it with a closed-loop LLM-guided experimentation framework.
+Built on top of [kuangliu/pytorch-cifar](https://github.com/kuangliu/pytorch-cifar). The closed-loop experimentation framework and LLM integration are original contributions.
+
+## License
+
+MIT

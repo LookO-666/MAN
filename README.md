@@ -19,11 +19,16 @@ MAN (Model Augmentation Network) is a closed-loop AI research system that uses L
 ├── models/                          # Backbone definitions (ResNet, VGG, DenseNet, etc.)
 ├── utils.py                         # Training utilities (progress bar, init)
 ├── run_baselines.py                 # Baseline runners: random / zeroshot / openloop
-├── results/                         # Saved baseline & comparison results
+├── results/                         # Saved baseline, baselines, and closed-loop logs
 │   ├── baseline_200ep/              #   ResNet-18 200-epoch baseline (95.51%)
-│   ├── random/                      #   Random hyperparameter search
-│   ├── zeroshot/                    #   Single-shot LLM modification
-│   └── openloop/                    #   Multi-iteration LLM without feedback
+│   ├── random/                      #   Random hyperparameter-search baseline
+│   ├── zeroshot/                    #   Single-shot LLM baseline
+│   ├── openloop/                    #   Multi-iteration LLM without feedback baseline
+│   ├── full_run1/                   #   Closed-loop full system run #1 logs
+│   ├── full_run2/                   #   Closed-loop full system run #2 logs
+│   ├── no_cfm/                      #   Ablation logs (without CFM)
+│   ├── no_sef/                      #   Ablation logs (without SEF)
+│   └── random_200ep/                #   Random-strategy 200-epoch run logs
 │
 └── closed_loop/                     # Core closed-loop system
     ├── loop.py                      #   Main research loop driver

@@ -162,6 +162,70 @@ Round N:
   └─────────────────────────────────────────────────────┘
 ```
 
+## First LLM Invocation: Entry Point, Call Chain, and Input Payload
+
+### Entry Point
+
+The first LLM call happens in **Step 1 (Idea Generation)** of the very first round, triggered from `closed_loop/loop.py`.
+
+### Call Chain
+
+```
+closed_loop/loop.py  run_full_loop()          # line 349
+  └─ loop.py         for round_num in ...:    # line 390  (Round 1)
+       └─ loop.py    _generate_ideas_llm()    # line 423  (Step 1: Generating ideas)
+            └─ loop.py  call_llm(...)         # line 718  ← first actual LLM call
+                 └─ llm_client.py  call_llm() # line 26   (sends OpenAI chat.completions.create)
+```
+
+> **Note – `single_shot` mode**: `run_full_loop` immediately delegates to `_run_single_shot()` (line 387), which also calls `_generate_ideas_llm` as its first action, so the first LLM call is structurally identical.  
+> **`random` mode**: No LLM is used; ideas come from a pre-defined list (`RANDOM_MODIFICATIONS`).
+
+### Concrete Input Payload (Round 1, Step 1)
+
+The call at `loop.py:718` is:
+```python
+response = call_llm("你是一位ML研究专家。", prompt, **llm_kw)
+```
+
+This translates to the following `messages` array sent to the OpenAI-compatible API (`llm_client.py:40-43`):
+
+```json
+[
+  {
+    "role": "system",
+    "content": "你是一位ML研究专家。"
+  },
+  {
+    "role": "user",
+    "content": "<IDEA_GENERATION_PROMPT — see closed_loop/prompts.py:3>"
+  }
+]
+```
+
+### How the User Prompt Is Assembled
+
+The user message is built at `loop.py:710-717` by filling `IDEA_GENERATION_PROMPT` (defined in `closed_loop/prompts.py:3-48`) with six context variables:
+
+| Variable               | Source                                                              | Value on Round 1 (fresh run)           |
+|------------------------|---------------------------------------------------------------------|----------------------------------------|
+| `{baseline_acc}`       | `results/baseline_200ep/results.json` → `best_test_acc`            | `95.51` (%)                            |
+| `{history_summary}`    | `build_history_summary(all_round_results)` — `loop.py:62`          | `"暂无历史实验结果（这是第一轮）。"`   |
+| `{experience_lessons}` | `ExperienceMemory.format_for_prompt(...)` — `experience_memory.py:181` | `"暂无历史经验。"`                 |
+| `{generation_guidance}`| `ExperienceMemory.format_generation_guidance(...)`                  | `"暂无额外约束。"`                     |
+| `{previous_suggestions}`| `build_suggestions_summary(all_round_results)` — `loop.py:108`   | `"暂无历史建议。"`                     |
+| `{num_ideas}`          | `config["num_candidates"]` — `config.py:12`                        | `6`                                    |
+
+The resulting first-round user message is therefore the `IDEA_GENERATION_PROMPT` template with all placeholders filled as above — asking the LLM to propose **6 concrete, diverse improvement ideas** for the ResNet-18 / CIFAR-10 baseline (starting from 95.51 % accuracy), with no historical constraints yet loaded into the prompt.
+
+### Additional Parameters
+
+| Parameter      | Value                                     |
+|----------------|-------------------------------------------|
+| `model`        | `deepseek-chat` (default; override via `OPENAI_MODEL` env var) |
+| `temperature`  | `0.7`                                     |
+| `max_retries`  | `3` (with exponential back-off)           |
+
 ## Acknowledgement
 
 Built on top of [kuangliu/pytorch-cifar](https://github.com/kuangliu/pytorch-cifar). The closed-loop experimentation framework and LLM integration are original contributions.
